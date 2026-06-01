@@ -1,0 +1,15 @@
+{
+  "name": "shiftsafe-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @shiftsafe/frontend",
+    "build": "npm run build -w @shiftsafe/frontend",
+    "start": "npm run start -w @shiftsafe/frontend",
+    "typecheck": "npm run typecheck -w @shiftsafe/frontend",
+    "lint": "npm run lint -w @shiftsafe/frontend"
+  }
+}
