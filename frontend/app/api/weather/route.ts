@@ -175,7 +175,6 @@ export async function GET(req: NextRequest) {
   // Resolve coordinates
   let lat: number = CITY_COORDS.mumbai.lat;
   let lon: number = CITY_COORDS.mumbai.lon;
-  let resolvedCity = cityParam;
   if (latParam && lonParam) {
     lat = parseFloat(latParam);
     lon = parseFloat(lonParam);
@@ -201,7 +200,6 @@ export async function GET(req: NextRequest) {
           if (Array.isArray(geoData) && geoData.length > 0) {
             lat = geoData[0].lat;
             lon = geoData[0].lon;
-            resolvedCity = (geoData[0].name || cityParam).toLowerCase();
             resolved = true;
           }
         }

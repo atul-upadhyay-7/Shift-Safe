@@ -36,4 +36,4 @@ Mobile browser verification covered phone request, local verification, work prof
 
 Choose and integrate a genuine phone-verification provider. Add authoritative event ingestion and documented eligibility/plan terms. Implement server-priced payment orders, signature/webhook verification, idempotent activation and payout reconciliation before restoring disabled financial endpoints. Review existing active/paid rows: this stage does not silently rewrite historical demo records. The existing ML, weather provenance, underwriting legal wording, rate-limit persistence and broader hardcoded product data remain later-stage work.
 
-The project-wide lint baseline still has unrelated failures. Changed Stage A files are checked separately; tests, typecheck and production build must pass. Dependency advisories remain from the audit and are not claimed fixed by this stage.
+The project-wide lint baseline was repaired in a follow-up: strict lint, tests, typecheck and production build pass. Dependency advisories remain from the audit and are not claimed fixed by this stage.

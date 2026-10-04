@@ -197,7 +197,13 @@ export function downloadReceipt({ claim, worker, policy }: ReceiptData): void {
 /**
  * Export all claims as a CSV file and trigger download.
  */
-export function downloadClaimsCSV(claims: any[], workerName?: string): void {
+interface ExportClaim {
+  id: string; amount: number; status: string; zone: string; triggerType: string;
+  timestamp?: string; createdAt?: string; triggerName?: string; triggerValue?: string;
+  fraudScore: number; fraudLabel: string; payoutRef?: string;
+  settlement?: { transactionRef: string | null };
+}
+export function downloadClaimsCSV(claims: ExportClaim[], workerName?: string): void {
   const headers = [
     'Claim ID',
     'Date',
@@ -214,18 +220,18 @@ export function downloadClaimsCSV(claims: any[], workerName?: string): void {
 
   const rows = claims.map((c) => [
     c.id,
-    new Date(c.timestamp).toLocaleDateString('en-IN', {
+    new Date(c.timestamp || c.createdAt || "").toLocaleDateString('en-IN', {
       day: 'numeric', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     }),
     c.triggerType,
-    c.triggerName,
-    `"${c.triggerValue}"`,
+    c.triggerName || c.triggerType,
+    `"${c.triggerValue || ""}"`,
     String(c.amount),
     c.status,
     String(c.fraudScore),
     c.fraudLabel,
-    c.payoutRef,
+    c.payoutRef || c.settlement?.transactionRef || "",
     c.zone,
   ]);
 

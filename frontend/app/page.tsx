@@ -61,7 +61,6 @@ export default function SplashPage() {
   const router = useRouter();
   const { isBootstrapping, isLoggedIn } = useAppState();
   const [activeFeature, setActiveFeature] = useState(0);
-  const [showFaq, setShowFaq] = useState<number | null>(null);
 
   // auto-rotate features
   useEffect(() => {

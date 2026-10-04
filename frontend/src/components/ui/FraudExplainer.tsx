@@ -88,7 +88,6 @@ export default function FraudExplainer({
   flags = [],
   mlScore,
   distanceKm,
-  status,
   triggerType,
 }: FraudExplainerProps) {
   const [expanded, setExpanded] = useState(false);

@@ -6,7 +6,6 @@ import {
   triggerNotification,
   triggerToast,
 } from "@/frontend/components/ui/Notifications";
-import { getTriggerEmoji } from "@/backend/utils/store";
 import { safeReplace } from "@/lib/client/navigation";
 
 let localClaimSequence = 0;
