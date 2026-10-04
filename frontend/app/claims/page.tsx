@@ -125,7 +125,7 @@ export default function ClaimsPage() {
     return (
       <div className="max-w-120 mx-auto space-y-4 pb-8">
         <h1 className="text-xl font-bold">Claims</h1>
-        <div className="glass-card p-6">
+        <div className="glass-card p-6 coverage-state-card">
           <h2 className="text-lg font-bold text-amber-700">No active insurance cover</h2>
           <p className="text-sm text-gray-600 mt-2">{policy?.status === "pending" ? "Your quote is pending. Payment and activation are not available yet." : "Registration does not activate insurance. You may be ineligible or have opted out."}</p>
           <p className="text-sm text-gray-600 mt-2">No payout or protection is promised until a policy is confirmed active.</p>

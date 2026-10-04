@@ -92,7 +92,7 @@ export default function PoliciesPage() {
   if (!policy || policy.status !== "active") {
     return <div className="max-w-120 mx-auto space-y-4 pb-8">
       <h1 className="text-xl font-bold">Policy</h1>
-      <div className="glass-card p-6">
+      <div className="glass-card p-6 coverage-state-card">
         <h2 className="text-lg font-bold text-amber-700">No active insurance cover</h2>
         <p className="text-sm text-gray-600 mt-2">{policy?.status === "pending" ? `Pending quote: ₹${policy.weeklyPremium} per week. This is not paid cover.` : "There is no active policy for your account."}</p>
         <p className="text-sm text-gray-600 mt-2">Payments and activation are unavailable until verification is configured.</p>

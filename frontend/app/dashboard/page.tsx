@@ -177,7 +177,7 @@ export default function DashboardPage() {
     return (
       <div className="space-y-4 max-w-120 mx-auto fade-in pb-6">
         <div className="h-7 w-48 bg-slate-200 rounded-lg animate-pulse" />
-        <div className="glass-card p-6">
+        <div className="glass-card p-6 coverage-state-card">
           <div className="flex justify-center mb-4">
             <div className="w-20 h-20 rounded-2xl bg-slate-200 animate-pulse" />
           </div>
