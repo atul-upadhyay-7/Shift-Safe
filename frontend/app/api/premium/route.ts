@@ -1,3 +1,4 @@
+import { authorizeWorker } from "@/lib/server/authorization";
 // GET /api/premium?workerId=...&zone=...&shift=...&forecast=...&city=...
 import { NextRequest, NextResponse } from "next/server";
 import { calculateDynamicPremium } from "@/backend/engines/premium-engine";
@@ -47,6 +48,8 @@ export async function GET(req: NextRequest) {
   let platform = platformParam;
 
   if (workerId) {
+    const auth = await authorizeWorker(req, workerId);
+    if (auth.response) return auth.response;
     const db = getDb();
     const row = (await db
       .prepare("SELECT COUNT(*) as cnt FROM claims WHERE worker_id = ?")

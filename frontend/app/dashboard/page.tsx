@@ -131,7 +131,7 @@ export default function DashboardPage() {
   } = useAppState();
   const [activeTriggers, setActiveTriggers] = useState<string[]>([]);
   const [processing, setProcessing] = useState<string | null>(null);
-  const [weatherTips, setWeatherTips] = useState<{
+  const [weatherTips] = useState<{
     currentMonth: string;
     riskLevel: string;
     tips: string[];
@@ -142,17 +142,6 @@ export default function DashboardPage() {
   // redirect if not logged in
   useEffect(() => {
     if (!isBootstrapping && !isLoggedIn) safeReplace(router, "/");
-    // fetch historical weather recommendations
-    const qs = worker?.id ? `?workerId=${encodeURIComponent(worker.id)}` : "";
-    fetch(`/api/dashboard${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.weatherRecommendations) {
-          setWeatherTips(d.weatherRecommendations);
-        }
-      })
-      .catch(() => {});
-
     // Fetch LIVE weather data for pills
     const city = worker?.city || "mumbai";
     fetch(`/api/weather?city=${encodeURIComponent(city)}`)
@@ -223,6 +212,19 @@ export default function DashboardPage() {
             </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (!policy || policy.status !== "active") {
+    return (
+      <div className="max-w-120 mx-auto space-y-4 pb-8">
+        <h1 className="text-xl font-bold">Dashboard</h1>
+        <div className="glass-card p-6">
+          <h2 className="text-lg font-bold text-amber-700">No active insurance cover</h2>
+          <p className="text-sm text-gray-600 mt-2">{policy?.status === "pending" ? "Your quote is pending. Payment and activation are not available yet." : "Registration does not activate insurance. You may be ineligible or have opted out."}</p>
+          <p className="text-sm text-gray-600 mt-2">No payout or protection is promised until a policy is confirmed active.</p>
+        </div>
       </div>
     );
   }

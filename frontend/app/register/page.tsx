@@ -1,12 +1,11 @@
 "use client";
-import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
 import { calculateWeeklyPremium } from "@/backend/engines/premium-engine";
 import { safePush } from "@/lib/client/navigation";
 
-type Step = "phone" | "otp" | "aadhaar" | "persona" | "profile" | "calculating";
+type Step = "phone" | "otp" | "persona" | "profile" | "calculating";
 
 const CITIES = [
   // Tier 1 Metro
@@ -213,24 +212,15 @@ export default function RegisterPage() {
   const { refreshSession } = useAppState();
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
+  const [registrationProof, setRegistrationProof] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState("");
   const [otpVerifying, setOtpVerifying] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Aadhaar verification state
-  const [aadhaarNumber, setAadhaarNumber] = useState("");
-  const [aadhaarError, setAadhaarError] = useState("");
-  const [aadhaarVerifying, setAadhaarVerifying] = useState(false);
-  const [aadhaarVerified, setAadhaarVerified] = useState(false);
-
-  const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
-  const [selectedEarningRange, setSelectedEarningRange] = useState<
-    string | null
-  >(null);
-  const [salaryPreview, setSalaryPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState("");
+  const [selectedEarningRange, setSelectedEarningRange] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -242,11 +232,15 @@ export default function RegisterPage() {
     avgWeeklyEarnings: "",
     hoursPerDay: "",
     daysWorkedThisWeek: "6",
+    totalActiveDeliveryDays: "",
+    daysActiveInLast30: "",
+    consentGps: false,
+    consentPayout: false,
+    consentActivity: false,
     payoutMethod: "upi",
     upiId: "",
     bankAccount: "",
     ifscCode: "",
-    plan: "Medium",
     wantInsurance: true,
   });
 
@@ -277,7 +271,7 @@ export default function RegisterPage() {
     }
   }, [step]);
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!isIndianPhoneValid) {
       setPhoneError("Enter a valid Indian mobile number (starts with 6-9).");
       return;
@@ -286,6 +280,11 @@ export default function RegisterPage() {
     setPhoneError("");
     setOtp(["", "", "", "", "", ""]);
     setOtpError("");
+    try {
+      const res = await fetch("/api/auth/otp/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone }) });
+      const data = await res.json();
+      if (!res.ok) { setPhoneError(data.error || "Phone verification is unavailable"); return; }
+    } catch { setPhoneError("Phone verification is unavailable"); return; }
     setStep("otp");
   };
 
@@ -308,7 +307,8 @@ export default function RegisterPage() {
         return;
       }
 
-      setTimeout(() => setStep("aadhaar"), 200);
+      setRegistrationProof(String(data.registrationProof || ""));
+      setStep("persona");
     } catch {
       setOtpError("Unable to verify OTP right now. Please try again.");
     } finally {
@@ -347,14 +347,6 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSalaryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setSalaryPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
   const handlePersonaContinue = () => {
     if (!selectedPersona || !form.city) return;
     // Apply selected earning range to form
@@ -367,6 +359,9 @@ export default function RegisterPage() {
   const handleCalculatePremium = async () => {
     setIsSubmitting(true);
     setSubmitError("");
+    if (!registrationProof) { setSubmitError("Verify your phone before registration."); setIsSubmitting(false); return; }
+    if (form.daysActiveInLast30 === "") { setSubmitError("Enter your activity days in the last 30 days."); setIsSubmitting(false); return; }
+    if (!form.totalActiveDeliveryDays || !Number.isInteger(Number(form.totalActiveDeliveryDays)) || Number(form.totalActiveDeliveryDays) < 0) { setSubmitError("Enter your actual lifetime active delivery days."); setIsSubmitting(false); return; }
     setStep("calculating");
 
     const finalCity =
@@ -383,21 +378,10 @@ export default function RegisterPage() {
       "clear",
       finalCity,
       daysWorked,
-      14, // assume 14 active days for new registration
+      Number(form.totalActiveDeliveryDays),
     );
 
-    // Apply plan multiplier
-    let planMultiplier = 1;
-    if (form.plan === "Pro") planMultiplier = 1.5;
-    if (form.plan === "Basic") planMultiplier = 0.8;
-
-    result.weeklyPremium = Math.round(result.weeklyPremium * planMultiplier);
-    if (result.maxPayoutPerWeek) {
-      result.maxPayoutPerWeek = Math.round(
-        result.maxPayoutPerWeek * planMultiplier,
-      );
-    }
-
+    // Pricing comes from the server; no client-only plan multiplier.
     setPremiumResult(result);
 
     try {
@@ -414,7 +398,10 @@ export default function RegisterPage() {
           avgWeeklyIncome: parseFloat(form.avgWeeklyEarnings) || 4200,
           vehicleType: "bike",
           daysWorkedThisWeek: parseInt(form.daysWorkedThisWeek) || 6,
-          totalActiveDeliveryDays: 14,
+          totalActiveDeliveryDays: Number(form.totalActiveDeliveryDays),
+          registrationProof,
+          daysActiveInLast30: Number(form.daysActiveInLast30),
+          consents: { gpsLocation: form.consentGps, bankUpi: form.consentPayout, platformActivity: form.consentActivity },
           wantInsurance: form.wantInsurance,
           payoutMethod: form.payoutMethod,
           upiId: form.upiId,
@@ -440,39 +427,9 @@ export default function RegisterPage() {
     }
   };
 
-  // Aadhaar validation — Verhoeff checksum for 12-digit UIDAI numbers
-  const isAadhaarValid = /^\d{12}$/.test(aadhaarNumber);
-
-  const handleAadhaarVerify = async () => {
-    if (!isAadhaarValid) {
-      setAadhaarError("Enter a valid 12-digit Aadhaar number.");
-      return;
-    }
-    setAadhaarError("");
-    setAadhaarVerifying(true);
-
-    // Simulate UIDAI verification (in production, this would hit the Aadhaar API)
-    await new Promise((r) => setTimeout(r, 1500));
-
-    setAadhaarVerified(true);
-    setAadhaarVerifying(false);
-    setTimeout(() => setStep("persona"), 400);
-  };
-
   // Progress bar
-  const stepIndex =
-    step === "phone"
-      ? 0
-      : step === "otp"
-        ? 1
-        : step === "aadhaar"
-          ? 2
-          : step === "persona"
-            ? 3
-            : step === "profile"
-              ? 4
-              : 5;
-  const progressPercent = Math.min(100, ((stepIndex + 1) / 6) * 100);
+  const stepIndex = ["phone", "otp", "persona", "profile", "calculating"].indexOf(step);
+  const progressPercent = Math.min(100, ((stepIndex + 1) / 5) * 100);
 
   return (
     <div className="max-w-md mx-auto min-h-[75vh] flex flex-col fade-in px-4 pt-4 pb-8">
@@ -480,12 +437,11 @@ export default function RegisterPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            Step {stepIndex + 1} of 6
+            Step {stepIndex + 1} of 5
           </div>
           <div className="text-[10px] text-gray-400">
             {step === "phone" && "Phone"}
             {step === "otp" && "Verify OTP"}
-            {step === "aadhaar" && "Aadhaar KYC"}
             {step === "persona" && "Work Profile"}
             {step === "profile" && "Details"}
             {step === "calculating" && "AI Quote"}
@@ -561,7 +517,7 @@ export default function RegisterPage() {
 
             <p className="text-xs text-center text-gray-500 mt-6">
               By continuing, you agree to our{" "}
-              <span className="text-primary-500 cursor-pointer">Terms</span> and{" "}
+              <span className="text-primary-500">Terms</span> and{" "}
               <span className="text-primary-500 cursor-pointer">
                 Privacy Policy
               </span>
@@ -613,148 +569,13 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-600">
-                💡 Demo OTP:{" "}
-                <span className="font-mono font-bold tracking-widest">
-                  1 2 3 4 5 6
-                </span>
-              </div>
-            </div>
+            <p className="text-center text-xs text-amber-700">Local test mode. No SMS was sent. Use your operator-configured code.</p>
 
             <button
               onClick={() => setStep("phone")}
               className="btn btn-ghost w-full mt-6 text-sm"
             >
               ← Change Number
-            </button>
-          </div>
-        )}
-
-        {/* step 3: aadhaar verification */}
-        {step === "aadhaar" && (
-          <div className="w-full">
-            <div className="text-center mb-8">
-              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-2xl bg-blue-500/10 border border-blue-500/20">
-                🪪
-              </div>
-              <h1 className="text-2xl font-extrabold tracking-tight mb-2 text-slate-900">
-                Aadhaar Verification
-              </h1>
-              <p className="text-sm text-gray-600">
-                UIDAI KYC — Required for insurance eligibility
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-2">
-                Aadhaar Number
-              </label>
-              <div className="relative">
-                <input
-                  className="w-full px-4 text-lg py-4 outline-none text-slate-900 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-slate-400 font-medium tracking-widest"
-                  placeholder="XXXX XXXX XXXX"
-                  value={aadhaarNumber}
-                  onChange={(e) => {
-                    setAadhaarError("");
-                    setAadhaarVerified(false);
-                    setAadhaarNumber(
-                      e.target.value.replace(/\D/g, "").slice(0, 12),
-                    );
-                  }}
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={12}
-                />
-                {aadhaarVerified && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold">
-                      ✓
-                    </div>
-                  </div>
-                )}
-              </div>
-              {/* Display formatted Aadhaar */}
-              {aadhaarNumber.length > 0 && (
-                <div className="mt-2 text-xs text-slate-500 font-mono tracking-[0.25em]">
-                  {aadhaarNumber.replace(/(\d{4})(?=\d)/g, "$1 ")}
-                  {aadhaarNumber.length < 12 && (
-                    <span className="text-slate-300">
-                      {" · "}
-                      {12 - aadhaarNumber.length} digits remaining
-                    </span>
-                  )}
-                </div>
-              )}
-              {aadhaarError && (
-                <p className="mt-2 text-xs font-medium text-red-500">
-                  {aadhaarError}
-                </p>
-              )}
-            </div>
-
-            {/* Security note */}
-            <div className="mt-4 glass-card p-3">
-              <div className="flex items-start gap-2.5">
-                <span className="text-lg mt-0.5">🔒</span>
-                <div>
-                  <div className="text-[11px] font-bold text-slate-700 mb-0.5">
-                    Encrypted & DPDP Act Compliant
-                  </div>
-                  <div className="text-[10px] text-gray-500 leading-relaxed">
-                    Your Aadhaar is verified via UIDAI and masked
-                    (XXXX-XXXX-
-                    {aadhaarNumber.length >= 8
-                      ? aadhaarNumber.slice(-4)
-                      : "XXXX"}
-                    ). We only store the last 4 digits per DPDP Act 2023
-                    Section 4 (data minimization).
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Demo hint */}
-            <div className="text-center mt-4">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-600">
-                💡 Demo Aadhaar:{" "}
-                <span className="font-mono font-bold tracking-widest">
-                  1234 5678 9012
-                </span>
-              </div>
-            </div>
-
-            {aadhaarVerifying && (
-              <div className="text-center mt-4">
-                <div className="inline-flex items-center gap-2 text-xs text-blue-500 font-semibold">
-                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  Verifying with UIDAI...
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={handleAadhaarVerify}
-              disabled={!isAadhaarValid || aadhaarVerifying}
-              className="btn btn-primary w-full text-lg font-bold py-4 rounded-xl mt-6 disabled:opacity-50"
-              style={{
-                background: isAadhaarValid
-                  ? "linear-gradient(135deg, #3b82f6, #1d4ed8)"
-                  : undefined,
-              }}
-            >
-              {aadhaarVerifying
-                ? "Verifying..."
-                : aadhaarVerified
-                  ? "✓ Verified — Continue"
-                  : "Verify Aadhaar →"}
-            </button>
-
-            <button
-              onClick={() => setStep("otp")}
-              className="btn btn-ghost w-full mt-3 text-sm"
-            >
-              ← Back to OTP
             </button>
           </div>
         )}
@@ -884,66 +705,12 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Salary Screenshot Upload */}
-              <div>
-                <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-1.5">
-                  Salary Receipt / Earnings Screenshot{" "}
-                  <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleSalaryUpload}
-                />
-                {salaryPreview ? (
-                  <div className="relative rounded-xl border-2 border-emerald-300 bg-emerald-50 overflow-hidden">
-                    <Image
-                      src={salaryPreview}
-                      alt="Salary receipt"
-                      width={800}
-                      height={256}
-                      unoptimized
-                      className="w-full h-32 object-cover object-top"
-                    />
-                    <div className="absolute top-2 right-2 flex gap-1.5">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">
-                        ✓ Uploaded
-                      </span>
-                      <button
-                        onClick={() => {
-                          setSalaryPreview(null);
-                        }}
-                        className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white hover:bg-red-600"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:border-primary-400 hover:bg-primary-50/30 transition-all text-center group"
-                  >
-                    <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">
-                      📸
-                    </div>
-                    <div className="text-xs font-semibold text-slate-600">
-                      Upload salary receipt or earnings screenshot
-                    </div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">
-                      Zomato/Swiggy/Amazon payout proof helps fast-track
-                      verification
-                    </div>
-                  </button>
-                )}
-              </div>
+              <p className="text-xs text-gray-500">Activity is self-reported in this stage. Identity and platform verification are not configured; no KYC verification is claimed.</p>
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setStep("aadhaar")}
+                onClick={() => setStep("otp")}
                 className="px-5 py-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-1.5"
               >
                 ‹ Back
@@ -953,7 +720,7 @@ export default function RegisterPage() {
                 disabled={!selectedPersona || !form.city}
                 className="flex-1 btn btn-primary text-base font-bold py-3.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <span>✦</span> Get My AI Quote
+                <span>✦</span> Continue to Details
               </button>
             </div>
           </div>
@@ -1053,10 +820,10 @@ export default function RegisterPage() {
                     </span>
                     {currentCity.tierLabel} ·{" "}
                     {currentCity.tier === 1
-                      ? "Full coverage, 100% payout cap"
+                      ? "Quote uses the base city multiplier"
                       : currentCity.tier === 2
-                        ? "85% payout cap, 5% premium discount"
-                        : "70% payout cap, 15% premium discount"}
+                        ? "Quote uses the Tier 2 city multiplier"
+                        : "Quote uses the Tier 3 city multiplier"}
                   </div>
                 )}
               </div>
@@ -1072,6 +839,22 @@ export default function RegisterPage() {
                   onChange={(e) => update("avgWeeklyEarnings", e.target.value)}
                   placeholder="4200"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-1.5">Lifetime Active Delivery Days</label>
+                <input className="input-field" type="number" min="0" max="36500" value={form.totalActiveDeliveryDays} onChange={(e) => update("totalActiveDeliveryDays", e.target.value)} placeholder="Your actual activity history" />
+                <p className="text-xs text-gray-500 mt-1">Enter days you actually delivered. Eligibility is checked without changing the existing thresholds.</p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-1.5">Active Days in the Last 30 Days</label>
+                <input className="input-field" type="number" min="0" max="30" value={form.daysActiveInLast30} onChange={(e) => update("daysActiveInLast30", e.target.value)} />
+              </div>
+              <div className="space-y-2 text-xs text-gray-600">
+                <label className="flex gap-2"><input type="checkbox" checked={form.consentGps} onChange={(e) => update("consentGps", e.target.checked)} />I consent to location use for claim verification.</label>
+                <label className="flex gap-2"><input type="checkbox" checked={form.consentPayout} onChange={(e) => update("consentPayout", e.target.checked)} />I consent to payout-detail use for insurance payments.</label>
+                <label className="flex gap-2"><input type="checkbox" checked={form.consentActivity} onChange={(e) => update("consentActivity", e.target.checked)} />I consent to activity-data use for eligibility checks.</label>
               </div>
 
               <div>
@@ -1169,34 +952,7 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              {/* Plan selection if insurance wanted */}
-              {form.wantInsurance && (
-                <div>
-                  <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-1.5 mt-4">
-                    Select Coverage Plan
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Basic", "Medium", "Pro"].map((planOptions) => (
-                      <div
-                        key={planOptions}
-                        onClick={() => update("plan", planOptions)}
-                        className={`cursor-pointer rounded-xl border p-3 text-center transition-all ${form.plan === planOptions ? "bg-emerald-50 border-emerald-500 shadow-sm" : "bg-white border-slate-200 text-slate-500"}`}
-                      >
-                        <div
-                          className={`font-bold ${form.plan === planOptions ? "text-emerald-700" : "text-slate-600"}`}
-                        >
-                          {planOptions}
-                        </div>
-                        <div className="text-[10px] mt-1 text-slate-500">
-                          {planOptions === "Basic" && "80% Covex"}
-                          {planOptions === "Medium" && "Default"}
-                          {planOptions === "Pro" && "150% Covex"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <p className="text-xs text-gray-500">Your quote is assigned from eligibility and activity. Registration alone does not activate cover.</p>
 
               {/* insurance opt-in / opt-out */}
               <div className="glass-card p-4 flex items-center justify-between">
@@ -1208,8 +964,8 @@ export default function RegisterPage() {
                     </div>
                     <div className="text-[11px] text-gray-500">
                       {form.wantInsurance
-                        ? "You will be covered from your first week"
-                        : "You can opt-in later from policy page"}
+                        ? "Request an eligibility check and pending quote"
+                        : "No insurance policy will be created"}
                     </div>
                   </div>
                 </div>
@@ -1238,9 +994,9 @@ export default function RegisterPage() {
                   !form.name.trim() ||
                   !form.avgWeeklyEarnings ||
                   !form.hoursPerDay ||
-                  (form.payoutMethod === "upi"
-                    ? !form.upiId.trim()
-                    : !form.bankAccount.trim() || !form.ifscCode.trim())
+                  form.totalActiveDeliveryDays === "" ||
+                  form.daysActiveInLast30 === "" ||
+                  (form.payoutMethod === "bank" && (!form.bankAccount.trim() || !form.ifscCode.trim()))
                 }
                 className="flex-1 btn btn-primary text-base font-bold py-3.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1339,7 +1095,7 @@ export default function RegisterPage() {
                   ⚠️ Insurance coverage opted out
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  You can enable coverage anytime from the Policy page.
+                  No cover is active. Enrollment will require eligibility and payment verification.
                 </p>
               </div>
             )}

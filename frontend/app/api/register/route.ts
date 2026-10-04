@@ -1,9 +1,9 @@
-// handles new worker registration + underwriting + auto-creates policy
+// Verified local onboarding and underwriting create an unpaid quote, never active cover.
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/backend/models/db";
 import { calculateDynamicPremium } from "@/backend/engines/premium-engine";
 import { underwriteWorker } from "@/backend/engines/underwriting-engine";
-import { isProduction } from "@/lib/server/env";
+import { isProduction, getWorkerSessionSecret } from "@/lib/server/env";
 import {
   WORKER_SESSION_COOKIE,
   createWorkerSessionToken,
@@ -19,32 +19,8 @@ import {
   normalizeIndianPhone,
 } from "@/backend/utils/india-market";
 
-function isMissingWorkerColumnError(
-  error: unknown,
-  columnNames: string[],
-): boolean {
-  const message = String((error as { message?: string })?.message || error)
-    .toLowerCase()
-    .trim();
-
-  const mentionsTargetColumn = columnNames.some((columnName) =>
-    message.includes(columnName),
-  );
-
-  if (!mentionsTargetColumn) {
-    return false;
-  }
-
-  return (
-    message.includes("column") ||
-    message.includes("no such") ||
-    message.includes("does not exist") ||
-    message.includes("has no")
-  );
-}
-
 async function insertWorkerRecord(
-  db: ReturnType<typeof getDb>,
+  db: Pick<ReturnType<typeof getDb>, "prepare">,
   input: {
     workerId: string;
     sanitizedName: string;
@@ -87,102 +63,31 @@ async function insertWorkerRecord(
     activityTier,
   } = input;
 
-  try {
-    await db
-      .prepare(
-        `INSERT INTO workers (id, name, phone, email, platform, city, zone, shift_type, avg_weekly_income, vehicle_type, insurance_opted_out, payout_method, upi_id, bank_account, ifsc_code, active_delivery_days, days_worked_this_week, activity_tier)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        workerId,
-        sanitizedName,
-        sanitizedPhone,
-        safeEmail,
-        safePlatform,
-        safeCity,
-        safeZone,
-        shiftType || "full_day",
-        safeIncome,
-        vehicleType || "bike",
-        insuranceOptedOut ? 1 : 0,
-        normalizedPayoutMethod,
-        safeUpiId,
-        safeBankAccount,
-        safeIfscCode,
-        safeActiveDays,
-        safeDaysWorked,
-        activityTier,
-      );
-  } catch (error) {
-    const payoutColumns = [
-      "payout_method",
-      "upi_id",
-      "bank_account",
-      "ifsc_code",
-    ];
-    if (!isMissingWorkerColumnError(error, payoutColumns)) {
-      throw error;
-    }
-
-    console.warn(
-      "workers payout columns unavailable; using legacy registration insert",
-      error,
+  await db
+    .prepare(
+      `INSERT INTO workers (id, name, phone, email, platform, city, zone, shift_type, avg_weekly_income, vehicle_type, insurance_opted_out, payout_method, upi_id, bank_account, ifsc_code, active_delivery_days, days_worked_this_week, activity_tier)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      workerId,
+      sanitizedName,
+      sanitizedPhone,
+      safeEmail,
+      safePlatform,
+      safeCity,
+      safeZone,
+      shiftType || "full_day",
+      safeIncome,
+      vehicleType || "bike",
+      insuranceOptedOut ? 1 : 0,
+      normalizedPayoutMethod,
+      safeUpiId,
+      safeBankAccount,
+      safeIfscCode,
+      safeActiveDays,
+      safeDaysWorked,
+      activityTier,
     );
-
-    try {
-      await db
-        .prepare(
-          `INSERT INTO workers (id, name, phone, email, platform, city, zone, shift_type, avg_weekly_income, vehicle_type, insurance_opted_out, active_delivery_days, days_worked_this_week, activity_tier)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          workerId,
-          sanitizedName,
-          sanitizedPhone,
-          safeEmail,
-          safePlatform,
-          safeCity,
-          safeZone,
-          shiftType || "full_day",
-          safeIncome,
-          vehicleType || "bike",
-          insuranceOptedOut ? 1 : 0,
-          safeActiveDays,
-          safeDaysWorked,
-          activityTier,
-        );
-    } catch (legacyError) {
-      const legacyColumns = [
-        "active_delivery_days",
-        "days_worked_this_week",
-        "activity_tier",
-      ];
-
-      if (!isMissingWorkerColumnError(legacyError, legacyColumns)) {
-        throw legacyError;
-      }
-
-      console.warn(
-        "workers activity columns unavailable; using minimal registration insert",
-        legacyError,
-      );
-
-      await db
-        .prepare(
-          `INSERT INTO workers (id, name, phone, email, platform, city, zone)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          workerId,
-          sanitizedName,
-          sanitizedPhone,
-          safeEmail,
-          safePlatform,
-          safeCity,
-          safeZone,
-        );
-    }
-  }
 }
 
 function shouldUseSecureCookie(req: NextRequest): boolean {
@@ -208,20 +113,16 @@ function buildAuthedResponse(
   payload: unknown,
 ): NextResponse {
   const res = NextResponse.json(payload);
-  try {
-    const token = createWorkerSessionToken(workerId, phone);
-    const secureCookie = shouldUseSecureCookie(req);
+  const token = createWorkerSessionToken(workerId, phone);
+  const secureCookie = shouldUseSecureCookie(req);
 
-    res.cookies.set(WORKER_SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure: secureCookie,
-      sameSite: "strict",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    });
-  } catch (error) {
-    console.error("Failed to create worker session token:", error);
-  }
+  res.cookies.set(WORKER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: secureCookie,
+    sameSite: "strict",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60,
+  });
 
   return res;
 }
@@ -258,6 +159,9 @@ export async function POST(req: NextRequest) {
       upiId,
       bankAccount,
       ifscCode,
+      registrationProof,
+      daysActiveInLast30,
+      consents,
     } = body;
 
     if (!name || !phone) {
@@ -316,15 +220,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const safeIncome = Math.max(
-      500,
-      Math.min(50000, Number(avgWeeklyIncome) || 4000),
-    );
-    const safeDaysWorked = Math.min(
-      7,
-      Math.max(0, Number(daysWorkedThisWeek) || 6),
-    );
-    const safeActiveDays = Math.max(0, Number(totalActiveDeliveryDays) || 14);
+    const safeIncome = Number(avgWeeklyIncome);
+    if (!Number.isFinite(safeIncome) || safeIncome < 500 || safeIncome > 50000) return NextResponse.json({ error: "Weekly income must be between 500 and 50000" }, { status: 400 });
+    const safeDaysWorked = Number(daysWorkedThisWeek);
+    const safeActiveDays = Number(totalActiveDeliveryDays);
+    if (!Number.isInteger(safeDaysWorked) || safeDaysWorked < 0 || safeDaysWorked > 7 || !Number.isInteger(safeActiveDays) || safeActiveDays < 0 || safeActiveDays > 36500) {
+      return NextResponse.json({ error: "Enter valid weekly and lifetime activity days" }, { status: 400 });
+    }
 
     const normalizedPayoutMethod =
       String(payoutMethod || "upi")
@@ -346,7 +248,7 @@ export async function POST(req: NextRequest) {
     const bankAccountPattern = /^\d{9,18}$/;
     const ifscPattern = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
-    let safeUpiId = `${sanitizedPhone}@upi`;
+    let safeUpiId = "";
     let safeBankAccount: string | null = null;
     let safeIfscCode: string | null = null;
 
@@ -381,8 +283,26 @@ export async function POST(req: NextRequest) {
       safeUpiId =
         normalizedUpiId && upiPattern.test(normalizedUpiId)
           ? normalizedUpiId
-          : `${sanitizedPhone}@upi`;
+          : "";
     }
+
+    const monthlyDays = Number(daysActiveInLast30);
+    if (!Number.isInteger(monthlyDays) || monthlyDays < 0 || monthlyDays > 30 || monthlyDays > safeActiveDays) return NextResponse.json({ error: "Enter valid activity days in the last 30 days" }, { status: 400 });
+    const dpdpConsents = {
+      gpsLocation: consents?.gpsLocation === true,
+      bankUpi: consents?.bankUpi === true,
+      platformActivity: consents?.platformActivity === true,
+    };
+    // Validate signing configuration before saving an account.
+    try { getWorkerSessionSecret(); } catch {
+      return NextResponse.json({ error: "Registration authentication is not configured" }, { status: 503 });
+    }
+    const proofId = String(registrationProof || "").trim();
+    if (!proofId) return NextResponse.json({ error: "Phone verification is required" }, { status: 401 });
+    const proofDb = getDb();
+    await proofDb.prepare("DELETE FROM registration_proofs WHERE expires_at < ?").run(Date.now() - 24 * 60 * 60 * 1000);
+    const proofConsumed = await proofDb.prepare("UPDATE registration_proofs SET consumed = 1 WHERE id = ? AND phone = ? AND consumed = 0 AND expires_at > ?").run(proofId, sanitizedPhone, Date.now());
+    if (proofConsumed.changes !== 1) return NextResponse.json({ error: "Phone verification expired or already used. Verify again." }, { status: 401 });
 
     // Worker opted out of insurance
     const insuranceOptedOut = wantInsurance === false;
@@ -390,7 +310,17 @@ export async function POST(req: NextRequest) {
     const workerId = crypto.randomUUID();
     const policyId = crypto.randomUUID();
 
+    const statements: { query: string; params: unknown[] }[] = [];
     const db = getDb();
+    const writes = {
+      prepare(query: string) {
+        return {
+          async run(...params: unknown[]) { statements.push({ query, params }); return { changes: 1 }; },
+          async get() { throw new Error("Queued writes cannot read"); },
+          async all() { throw new Error("Queued writes cannot read"); },
+        };
+      },
+    };
 
     // make sure this phone number isn't already taken
     const existing = await db
@@ -410,19 +340,15 @@ export async function POST(req: NextRequest) {
       zone: safeZone,
       totalActiveDeliveryDays: safeActiveDays,
       daysWorkedThisWeek: safeDaysWorked,
-      daysActiveInLast30: safeActiveDays, // use total as proxy
+      daysActiveInLast30: monthlyDays,
       avgWeeklyIncome: safeIncome,
       vehicleType: vehicleType || "bike",
       isMultiApping: false,
-      dpdpConsents: {
-        gpsLocation: true,
-        bankUpi: true,
-        platformActivity: true,
-      },
+      dpdpConsents,
     });
 
-    // save the worker record (supports both current and legacy DB schemas)
-    await insertWorkerRecord(db, {
+    // All account, consent, policy and audit records commit together.
+    await insertWorkerRecord(writes, {
       workerId,
       sanitizedName,
       sanitizedPhone,
@@ -443,8 +369,11 @@ export async function POST(req: NextRequest) {
       activityTier: underwriting.activityTier,
     });
 
+    statements.push({ query: "INSERT INTO registration_consents (worker_id, gps_location, bank_upi, platform_activity) VALUES (?, ?, ?, ?)", params: [workerId, dpdpConsents.gpsLocation ? 1 : 0, dpdpConsents.bankUpi ? 1 : 0, dpdpConsents.platformActivity ? 1 : 0] });
+
     // If worker opted out or not eligible — skip policy creation
     if (insuranceOptedOut) {
+      await db.batch(statements);
       return buildAuthedResponse(req, workerId, sanitizedPhone, {
         success: true,
         workerId,
@@ -459,6 +388,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!underwriting.eligible) {
+      await db.batch(statements);
       return buildAuthedResponse(req, workerId, sanitizedPhone, {
         success: true,
         workerId,
@@ -485,8 +415,8 @@ export async function POST(req: NextRequest) {
       safeActiveDays,
     );
 
-    // create their first active policy with fixed tier
-    await db
+    // A quote is not paid cover. Activation requires verified payment in the payment stage.
+    await writes
       .prepare(
         `INSERT INTO policies (id, worker_id, plan_name, premium_tier, weekly_premium, max_coverage_per_week, max_payout_percent, status, city_pool)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -497,14 +427,14 @@ export async function POST(req: NextRequest) {
         premium.premiumTierName,
         premium.activityTier,
         premium.weeklyPremium,
-        premium.maxPayoutPerWeek,
+        premium.coverageAmount,
         50.0,
-        "active",
+        "pending",
         premium.cityPool,
       );
 
     // save the full calculation for audit trail
-    await db
+    await writes
       .prepare(
         `INSERT INTO premium_calculations (id, worker_id, base_premium, zone_risk_factor, weather_risk_factor, historical_claim_factor, platform_risk_factor, final_premium, factors_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -524,7 +454,7 @@ export async function POST(req: NextRequest) {
     // Log weekly activity
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    await db
+    await writes
       .prepare(
         `INSERT INTO weekly_activity_log (id, worker_id, week_start, days_active, total_deliveries, total_earnings, is_eligible)
       VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -534,15 +464,18 @@ export async function POST(req: NextRequest) {
         workerId,
         weekStart.toISOString().split("T")[0],
         safeDaysWorked,
-        safeDaysWorked * 7,
+        0,
         safeIncome,
         underwriting.eligible ? 1 : 0,
       );
+
+    await db.batch(statements);
 
     return buildAuthedResponse(req, workerId, sanitizedPhone, {
       success: true,
       workerId,
       policyId,
+      policyStatus: "pending",
       underwriting: {
         eligible: underwriting.eligible,
         reason: underwriting.reason,

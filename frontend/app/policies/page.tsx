@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
 import { triggerToast } from "@/frontend/components/ui/Notifications";
@@ -66,33 +66,14 @@ const PAYOUT_CHANNELS = [
   },
 ];
 
-let paymentSequence = 2;
-
-function createLocalPaymentId(): string {
-  const id = `TXN-${String(paymentSequence).padStart(3, "0")}`;
-  paymentSequence += 1;
-  return id;
-}
-
 export default function PoliciesPage() {
   const router = useRouter();
   const { worker, policy, claims, isLoggedIn, isBootstrapping } = useAppState();
   const [insuranceActive, setInsuranceActive] = useState(
-    policy?.status !== "cancelled" && policy?.status !== "expired",
+    policy?.status === "active",
   );
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [policyActionLoading, setPolicyActionLoading] = useState(false);
-  const [paymentHistory, setPaymentHistory] = useState([
-    {
-      id: "TXN-001",
-      date: "16 Mar 2026",
-      amount: 35,
-      status: "Paid",
-      receipt: "receipt-001.pdf",
-    },
-  ]);
-  const [uploadingReceipt, setUploadingReceipt] = useState(false);
-  const receiptInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isBootstrapping && !isLoggedIn) safeReplace(router, "/");
@@ -100,12 +81,23 @@ export default function PoliciesPage() {
 
   useEffect(() => {
     setInsuranceActive(
-      policy?.status !== "cancelled" && policy?.status !== "expired",
+      policy?.status === "active",
     );
   }, [policy?.status]);
 
   if (isBootstrapping) {
     return null;
+  }
+
+  if (!policy || policy.status !== "active") {
+    return <div className="max-w-120 mx-auto space-y-4 pb-8">
+      <h1 className="text-xl font-bold">Policy</h1>
+      <div className="glass-card p-6">
+        <h2 className="text-lg font-bold text-amber-700">No active insurance cover</h2>
+        <p className="text-sm text-gray-600 mt-2">{policy?.status === "pending" ? `Pending quote: ₹${policy.weeklyPremium} per week. This is not paid cover.` : "There is no active policy for your account."}</p>
+        <p className="text-sm text-gray-600 mt-2">Payments and activation are unavailable until verification is configured.</p>
+      </div>
+    </div>;
   }
 
   const riskScore = policy?.riskScore ?? 22;
@@ -239,37 +231,6 @@ export default function PoliciesPage() {
     }
   };
 
-  const handleUploadReceipt = () => {
-    if (uploadingReceipt) return;
-    receiptInputRef.current?.click();
-  };
-
-  const onReceiptFileSelected = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingReceipt(true);
-    setTimeout(() => {
-      setPaymentHistory((prev) => [
-        {
-          id: createLocalPaymentId(),
-          date: new Date().toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
-          amount: weeklyPremium,
-          status: "Paid",
-          receipt: file.name,
-        },
-        ...prev,
-      ]);
-      setUploadingReceipt(false);
-      triggerToast("Receipt uploaded and payment verified!", "success");
-    }, 1500);
-  };
 
   return (
     <div className="space-y-5 max-w-120 mx-auto fade-in pb-8">
@@ -434,125 +395,10 @@ export default function PoliciesPage() {
       </div>
 
       {/* ── Razorpay Pay Premium Button ── */}
-      {insuranceActive && (
-        <div className="glass-card p-4" style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.04), rgba(147,51,234,0.04))" }}>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}>
-              💳
-            </div>
-            <div className="flex-1">
-              <div className="text-sm font-bold text-slate-900">Pay Weekly Premium</div>
-              <div className="text-[11px] text-gray-500">
-                Razorpay Secure Checkout · UPI / Card / Net Banking
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                setPolicyActionLoading(true);
-                try {
-                  // Step 1: Create Razorpay order via backend
-                  const res = await fetch("/api/razorpay/order", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      amount: weeklyPremium,
-                      workerId: worker?.id,
-                      policyId: policy?.id,
-                      description: `ShiftSafe Weekly Premium — ${worker?.name || "Worker"}`,
-                    }),
-                  });
-                  const data = await res.json();
-                  if (!data.success || !data.orderId) {
-                    triggerToast(data.error || "Unable to create payment order.", "error");
-                    setPolicyActionLoading(false);
-                    return;
-                  }
-
-                  // Step 2: Load Razorpay Checkout script if not already loaded
-                  if (!(window as any).Razorpay) {
-                    await new Promise<void>((resolve, reject) => {
-                      const script = document.createElement("script");
-                      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-                      script.onload = () => resolve();
-                      script.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
-                      document.head.appendChild(script);
-                    });
-                  }
-
-                  // Step 3: Open Razorpay Checkout modal
-                  const options = {
-                    key: data.keyId,
-                    amount: data.amount * 100,
-                    currency: data.currency || "INR",
-                    name: "ShiftSafe Insurance",
-                    description: data.description || `Weekly Premium ₹${weeklyPremium}`,
-                    order_id: data.orderId,
-                    prefill: {
-                      name: worker?.name || "",
-                      contact: worker?.phone || "",
-                    },
-                    theme: {
-                      color: "#6d28d9",
-                    },
-                    handler: function (response: any) {
-                      // Payment successful!
-                      setPaymentHistory((prev) => [
-                        {
-                          id: response.razorpay_payment_id || createLocalPaymentId(),
-                          date: new Date().toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          }),
-                          amount: weeklyPremium,
-                          status: "Paid",
-                          receipt: `rzp-${response.razorpay_payment_id || "paid"}`,
-                        },
-                        ...prev,
-                      ]);
-                      triggerToast(
-                        `₹${weeklyPremium} premium paid successfully! Payment ID: ${response.razorpay_payment_id}`,
-                        "success"
-                      );
-                    },
-                    modal: {
-                      ondismiss: function () {
-                        triggerToast("Payment cancelled by user.", "error");
-                      },
-                    },
-                  };
-
-                  const rzp = new (window as any).Razorpay(options);
-                  rzp.on("payment.failed", function (response: any) {
-                    triggerToast(
-                      `Payment failed: ${response.error?.description || "Unknown error"}`,
-                      "error"
-                    );
-                  });
-                  rzp.open();
-                } catch (err) {
-                  triggerToast("Unable to process payment right now. Please try again.", "error");
-                } finally {
-                  setPolicyActionLoading(false);
-                }
-              }}
-              disabled={policyActionLoading}
-              className="px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}
-            >
-              {policyActionLoading ? "Processing..." : `Pay ₹${weeklyPremium}`}
-            </button>
-          </div>
-          <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[9px] text-gray-400">
-            <span className="flex items-center gap-1">🔒 PCI-DSS Compliant</span>
-            <span>•</span>
-            <span>Test Card: 4111 1111 1111 1111</span>
-            <span>•</span>
-            <span>Test UPI: success@razorpay</span>
-          </div>
-        </div>
-      )}
+      <div className="glass-card p-5">
+        <h2 className="font-bold">Payments are unavailable</h2>
+        <p className="text-sm text-gray-600 mt-2">Payment collection and receipt verification are disabled until server verification is configured. No payment history is inferred.</p>
+      </div>
 
       {/* pricing formula */}
       <div className="glass-card p-5">
@@ -698,65 +544,8 @@ export default function PoliciesPage() {
 
       {/* payment history and receipt upload */}
       <div className="glass-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
-            Payment History & Receipts
-          </div>
-          <input
-            ref={receiptInputRef}
-            type="file"
-            accept="image/*,.pdf"
-            className="hidden"
-            onChange={onReceiptFileSelected}
-          />
-          <button
-            onClick={handleUploadReceipt}
-            disabled={uploadingReceipt}
-            className="btn btn-primary text-[10px] px-3 py-1 rounded-md"
-          >
-            {uploadingReceipt ? "Uploading..." : "Upload Receipt"}
-          </button>
-        </div>
-        <div className="space-y-3">
-          {paymentHistory.map((txn) => (
-            <div
-              key={txn.id}
-              className="flex flex-col gap-2 p-3 bg-slate-50 border border-slate-100 rounded-lg"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-slate-800">
-                    {txn.id}
-                  </div>
-                  <div className="text-[10px] text-gray-500">{txn.date}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs font-bold text-emerald-600">
-                    ₹{txn.amount}
-                  </div>
-                  <span className="px-2 py-0.5 mt-1 inline-block rounded-md text-[9px] font-bold uppercase bg-emerald-50 text-emerald-600 border border-emerald-200">
-                    {txn.status}
-                  </span>
-                </div>
-              </div>
-              <div className="border-t border-slate-200 pt-2 flex justify-end">
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    triggerToast(
-                      `Receipt ${txn.receipt} download started`,
-                      "success",
-                    );
-                  }}
-                  className="text-[10px] text-primary-500 font-semibold hover:underline flex items-center gap-1"
-                >
-                  📥 Download Receipt
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
+        <h2 className="font-bold">Payment history</h2>
+        <p className="text-sm text-gray-600 mt-2">Verified receipts are not available. Uploading a file cannot mark a payment as paid.</p>
       </div>
 
       {/* policy details */}

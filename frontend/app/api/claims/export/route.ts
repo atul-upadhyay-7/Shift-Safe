@@ -1,3 +1,4 @@
+import { authorizeWorker } from "@/lib/server/authorization";
 // GET /api/claims/export?workerId=...&format=csv
 // Server-side claim history export from the database.
 import { NextRequest, NextResponse } from 'next/server';
@@ -34,6 +35,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const auth = await authorizeWorker(req, workerId);
+  if (auth.response) return auth.response;
   const db = getDb();
 
   // get worker info for the header
@@ -48,7 +51,7 @@ export async function GET(req: NextRequest) {
     .all(workerId)) as ClaimExportRow[];
 
   const totalPaid = rows
-    .filter((r) => r.status === 'paid' || r.status === 'auto_approved')
+    .filter((r) => r.status === 'paid')
     .reduce((s, r) => s + r.amount, 0);
 
   const headers = [

@@ -1,3 +1,4 @@
+import { authorizeAdmin } from "@/lib/server/authorization";
 // GET /api/dashboard — Aggregate stats for dashboard with actuarial metrics
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/backend/models/db";
@@ -133,6 +134,8 @@ function getWeatherRecommendations(city: string): {
 }
 
 export async function GET(req: NextRequest) {
+  const unauthorized = authorizeAdmin(req);
+  if (unauthorized) return unauthorized;
   const db = getDb();
   const workerId = req.nextUrl.searchParams.get("workerId");
 

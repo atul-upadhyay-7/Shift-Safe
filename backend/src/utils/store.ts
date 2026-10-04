@@ -22,7 +22,7 @@ export interface PolicyData {
   coverageAmount: number;
   riskScore: number;
   riskLabel: string;
-  status: 'active' | 'expired' | 'cancelled';
+  status: 'active' | 'pending' | 'expired' | 'cancelled';
   startDate: string;
   nextPaymentDue: string;
   totalPremiumPaid: number;

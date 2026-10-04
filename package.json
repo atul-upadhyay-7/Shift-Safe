@@ -10,6 +10,10 @@
     "build": "npm run build -w @shiftsafe/frontend",
     "start": "npm run start -w @shiftsafe/frontend",
     "typecheck": "npm run typecheck -w @shiftsafe/frontend",
-    "lint": "npm run lint -w @shiftsafe/frontend"
+    "lint": "npm run lint -w @shiftsafe/frontend",
+    "test": "tsx --tsconfig frontend/tsconfig.json --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
   }
 }

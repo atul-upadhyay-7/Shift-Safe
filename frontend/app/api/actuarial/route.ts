@@ -1,3 +1,4 @@
+import { authorizeAdmin } from "@/lib/server/authorization";
 // GET /api/actuarial — Get actuarial metrics, BCR, and stress scenarios
 // POST /api/actuarial — Run a stress scenario
 import { NextRequest, NextResponse } from "next/server";
@@ -21,7 +22,9 @@ interface CountRow {
   cnt: number;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const unauthorized = authorizeAdmin(req);
+  if (unauthorized) return unauthorized;
   const db = getDb();
 
   // Current totals
@@ -91,6 +94,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const unauthorized = authorizeAdmin(req);
+  if (unauthorized) return unauthorized;
   try {
     const ip = getClientIp(req);
     const rate = consumeRateLimit(`actuarial_post:${ip}`, 25, 10 * 60 * 1000);

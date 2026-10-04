@@ -77,7 +77,7 @@ export function verifyAdminSessionToken(token: string): boolean {
     const expiresAt = Number(session.expiresAt);
     const nonce = String(session.nonce || "");
 
-    if (!email || !Number.isFinite(expiresAt) || !nonce) return false;
+    if (!email || email !== getAdminEmail() || !Number.isFinite(expiresAt) || !nonce) return false;
     if (Date.now() > expiresAt) return false;
 
     return true;

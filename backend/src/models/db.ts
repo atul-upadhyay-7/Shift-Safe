@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 
 interface DbWrapper {
+  batch(statements: { query: string; params: any[] }[]): Promise<void>;
   run(query: string, ...params: any[]): Promise<{ changes: number }>;
   get(query: string, ...params: any[]): Promise<any>;
   all(query: string, ...params: any[]): Promise<any[]>;
@@ -22,9 +23,10 @@ function shouldSeedDemoData(): boolean {
   const explicit = String(process.env.SEED_DEMO_DATA || "")
     .trim()
     .toLowerCase();
+  if (process.env.NODE_ENV === "production") return false;
   if (explicit === "true") return true;
   if (explicit === "false") return false;
-  return process.env.NODE_ENV !== "production";
+  return false;
 }
 
 function replaceSqliteDateFns(query: string): string {
@@ -176,7 +178,7 @@ async function wait(ms: number): Promise<void> {
 }
 
 async function createNeonDb(databaseUrl: string): Promise<DbWrapper> {
-  const sql = neon(databaseUrl);
+  const sql = neon(databaseUrl, { fullResults: true });
   const maxRetries = parsePositiveInt(process.env.NEON_QUERY_RETRIES, 2);
   const baseRetryDelayMs = parsePositiveInt(
     process.env.NEON_QUERY_RETRY_DELAY_MS,
@@ -191,7 +193,7 @@ async function createNeonDb(databaseUrl: string): Promise<DbWrapper> {
       try {
         return await sql.query(text, params);
       } catch (error) {
-        if (attempt >= maxRetries || !isTransientNetworkError(error)) {
+        if (!/^\s*SELECT\b/i.test(text) || attempt >= maxRetries || !isTransientNetworkError(error)) {
           throw error;
         }
         const delayMs = baseRetryDelayMs * 2 ** attempt;
@@ -215,6 +217,9 @@ async function createNeonDb(databaseUrl: string): Promise<DbWrapper> {
   };
 
   return {
+    async batch(statements: { query: string; params: any[] }[]) {
+      await sql.transaction(statements.map(({ query, params }) => sql.query(toNeonSql(query), params)));
+    },
     async run(query: string, ...params: any[]) {
       const result = await execute(query, params);
       return { changes: toRowCount(result) };
@@ -278,13 +283,23 @@ async function createSqliteDb(): Promise<DbWrapper> {
 
   const dataDir = join(process.cwd(), ".data");
   mkdirSync(dataDir, { recursive: true });
-  const dbPath = join(dataDir, "shiftsafe.db");
+  const dbPath = process.env.SQLITE_DB_PATH || join(dataDir, "shiftsafe.db");
 
   const sqlite = new DatabaseCtor(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
 
   return {
+    async batch(statements: { query: string; params: any[] }[]) {
+      sqlite.exec("BEGIN IMMEDIATE");
+      try {
+        for (const { query, params } of statements) sqlite.prepare(query).run(...params);
+        sqlite.exec("COMMIT");
+      } catch (error) {
+        sqlite.exec("ROLLBACK");
+        throw error;
+      }
+    },
     async run(query: string, ...params: any[]) {
       const result = sqlite.prepare(query).run(...params);
       return { changes: Number(result.changes ?? 0) };
@@ -319,6 +334,7 @@ async function createBaseDb(): Promise<DbWrapper> {
     _dbProvider = "neon";
     return createNeonDb(databaseUrl);
   }
+  if (process.env.NODE_ENV === "production") throw new Error("DATABASE_URL is required in production");
   _dbProvider = "sqlite";
   return createSqliteDb();
 }
@@ -328,7 +344,7 @@ export function getDbProvider(): "neon" | "sqlite" | "unknown" {
 }
 
 function canFallbackToSqlite(error: unknown): boolean {
-  return _dbProvider === "neon" && isTransientNetworkError(error);
+  return process.env.NODE_ENV !== "production" && process.env.ALLOW_SQLITE_FAILOVER === "true" && _dbProvider === "neon" && isTransientNetworkError(error);
 }
 
 async function switchToSqliteFallback(): Promise<DbWrapper> {
@@ -394,6 +410,7 @@ async function initializeIfNeeded(baseDb: DbWrapper): Promise<void> {
 export function getDb(): DbWrapper {
   if (!_dbWrapper) {
     _dbWrapper = {
+      async batch(statements) { return withDbFallback((db) => db.batch(statements)); },
       async run(query: string, ...params: any[]) {
         return withDbFallback((db) => db.run(query, ...params));
       },
@@ -425,6 +442,19 @@ export async function initDb() {
 
 async function initSchema(db: any) {
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS registration_proofs (
+      id TEXT PRIMARY KEY,
+      phone TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      consumed INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS registration_consents (
+      worker_id TEXT PRIMARY KEY,
+      gps_location INTEGER NOT NULL,
+      bank_upi INTEGER NOT NULL,
+      platform_activity INTEGER NOT NULL,
+      recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS workers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -661,8 +691,8 @@ async function ensureWorkerPayoutColumns(db: any) {
   for (const statement of migrationStatements) {
     try {
       await db.exec(statement);
-    } catch {
-      // Column already exists or dialect-specific duplicate-column error.
+    } catch (error) {
+      if (!/already exists|duplicate column/i.test(String((error as Error).message))) throw error;
     }
   }
 }
@@ -676,8 +706,8 @@ async function ensureServiceRequestAiColumns(db: any) {
   for (const statement of migrationStatements) {
     try {
       await db.exec(statement);
-    } catch {
-      // Column already exists or dialect-specific duplicate-column error.
+    } catch (error) {
+      if (!/already exists|duplicate column/i.test(String((error as Error).message))) throw error;
     }
   }
 }

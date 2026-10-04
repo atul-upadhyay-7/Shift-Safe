@@ -32,13 +32,18 @@ export default function LoginPage() {
     }
   }, [step]);
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!isIndianPhoneValid) {
       setError("Enter a valid Indian mobile number (starts with 6-9).");
       return;
     }
     setOtp(["", "", "", "", "", ""]);
     setError("");
+    try {
+      const res = await fetch("/api/auth/otp/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone }) });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Phone verification is unavailable"); return; }
+    } catch { setError("Phone verification is unavailable"); return; }
     setStep("otp");
   };
 
@@ -160,7 +165,7 @@ export default function LoginPage() {
         ) : (
           <>
             <div className="text-center mb-4">
-              <p className="text-sm text-gray-600">OTP sent to +91-{phone}</p>
+              <p className="text-sm text-gray-600">Local test verification for +91-{phone}</p>
             </div>
 
             <div className="flex justify-center gap-3 mb-4">
@@ -181,11 +186,7 @@ export default function LoginPage() {
               ))}
             </div>
 
-            <div className="text-center mb-3">
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-600">
-                💡 Demo OTP: <span className="font-mono font-bold tracking-widest">1 2 3 4 5 6</span>
-              </span>
-            </div>
+            <p className="text-center text-xs text-amber-700 mb-3">Local test mode. No SMS was sent. Use your operator-configured code.</p>
 
             {error && (
               <div className="text-xs text-red-500 font-medium text-center mb-3">

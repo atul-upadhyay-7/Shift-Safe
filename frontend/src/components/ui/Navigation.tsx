@@ -23,14 +23,14 @@ export function BottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-t border-slate-200/60 pb-[env(safe-area-inset-bottom,16px)]">
-      <div className="max-w-120 mx-auto flex items-center justify-around px-2 py-3">
+      <div className="max-w-120 mx-auto flex items-center justify-around gap-1 overflow-x-auto px-2 py-3">
         {links.map((l) => {
           const active = pathname === l.href;
           return (
             <a
               key={l.href}
               href={l.href}
-              className={`flex flex-col items-center gap-1 transition-all min-w-14 min-h-11 justify-center ${
+              className={`${l.href === "/actuarial" || l.href === "/analytics" ? "hidden sm:flex" : "flex"} flex-col items-center gap-1 transition-all shrink-0 min-w-14 min-h-11 justify-center ${
                 active
                   ? "text-primary-500 scale-105"
                   : "text-gray-400 hover:text-gray-600"
@@ -295,11 +295,16 @@ export function TopBar() {
                 <div className="px-4 py-2.5 bg-emerald-50/50 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Policy Active
+                    {policy?.status === "active" ? "Policy Active" : "No active cover"}
                   </span>
                   <span className="text-[10px] font-mono text-gray-500">
-                    {policy?.id ? policy.id.slice(0, 11) : "POL-001"}
+                    {policy?.id ? policy.id.slice(0, 11) : "No policy"}
                   </span>
+                </div>
+
+                <div className="sm:hidden px-4 py-3 flex gap-4 text-xs font-bold border-t border-slate-100">
+                  <a href="/actuarial">Actuarial</a>
+                  <a href="/analytics">Analytics</a>
                 </div>
 
                 {/* Sign Out */}
