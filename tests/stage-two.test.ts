@@ -19,6 +19,7 @@ test("Stage 2 persisted journey, private drafts and profile corrections", async 
   const { createWorkerSessionToken, WORKER_SESSION_COOKIE } = await import("../frontend/lib/server/worker-auth");
   const journey = await import("../frontend/app/api/journey/route");
   const drafts = await import("../frontend/app/api/onboarding/draft/route");
+  const gps = await import("../frontend/app/api/gps/verify/route");
   const profile = await import("../frontend/app/api/profile/route");
   const db = getDb();
   await db.prepare("INSERT INTO workers (id, name, phone, platform, city, zone, avg_weekly_income, active_delivery_days, days_worked_this_week) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run("a", "Fixture Worker", "9000000001", "Zomato", "Mumbai", "Andheri", 7000, 125, 0);
@@ -54,6 +55,15 @@ test("Stage 2 persisted journey, private drafts and profile corrections", async 
     assert.equal((await drafts.POST(request("/api/onboarding/draft", { action: "read", registrationProof: "wrong" }))).status, 401);
     await db.prepare("UPDATE google_registration_proofs SET consumed = 1 WHERE id = ?").run(hash);
     assert.equal((await drafts.POST(request("/api/onboarding/draft", { action: "read", registrationProof: proof }))).status, 401);
+  });
+  await t.test("GPS requires identity, fresh timestamp and real accuracy; city center never verifies a zone", async () => {
+    await db.prepare("INSERT INTO registration_consents (worker_id,gps_location,bank_upi,platform_activity) VALUES (?,?,?,?)").run("a",1,0,0);
+    const body={workerLocation:{lat:19.076,lon:72.8777},gpsAccuracyMeters:10,observedAt:Date.now()};
+    assert.equal((await gps.POST(request("/api/gps/verify",body))).status,401);
+    assert.equal((await gps.POST(request("/api/gps/verify",{...body,observedAt:Date.now()-900001},cookie))).status,400);
+    assert.equal((await gps.POST(request("/api/gps/verify",{...body,gpsAccuracyMeters:null},cookie))).status,400);
+    const result=await (await gps.POST(request("/api/gps/verify",body,cookie))).json();
+    assert.equal(result.verified,false);assert.equal(result.zoneContext.precision,"city_center");
   });
   await t.test("profile corrections invalidate old assessment without touching identity or policy", async () => {
     await db.prepare("INSERT INTO policies (id, worker_id, weekly_premium, status) VALUES (?, ?, ?, ?)").run("policy-a", "a", 42, "pending");

@@ -1,4 +1,5 @@
 import { authorizeWorker } from "@/lib/server/authorization";
+import { getDb } from "@/backend/models/db";
 import { isProduction } from "@/lib/server/env";
 // Authenticated trigger previews have no financial effect.
 import { NextRequest, NextResponse } from "next/server";
@@ -29,22 +30,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       workerId,
-      zone,
-      city,
       simulate,
       triggerType,
       severity,
     } = body;
-    const safeZone =
-      String(zone || "Andheri West")
-        .trim()
-        .slice(0, 80) || "Andheri West";
-    const safeCity =
-      String(city || "Mumbai")
-        .trim()
-        .slice(0, 60) || "Mumbai";
     const auth = await authorizeWorker(req, workerId);
     if (auth.response) return auth.response;
+    const worker = await getDb().prepare("SELECT city, zone FROM workers WHERE id = ?").get(auth.workerId);
+    const safeCity = String(worker.city || "");
+    const safeZone = String(worker.zone || "");
     if (simulate && (isProduction || process.env.ENABLE_LOCAL_SIMULATION !== "true")) {
       return NextResponse.json({ error: "Simulation is disabled in this environment" }, { status: 403 });
     }

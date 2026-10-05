@@ -55,7 +55,7 @@ const TRIGGERS = [
 const DEFAULT_WEATHER_PILLS = [
   { label: "🌡️ --°C", color: "#f97316" },
   { label: "🌧️ --mm", color: "#4d9fff" },
-  { label: "😷 AQI --", color: "#fbbf24" },
+  { label: "😷 US AQI --", color: "#fbbf24" },
   { label: "💨 -- km/h", color: "#8892a4" },
 ];
 
@@ -143,7 +143,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isBootstrapping && !isLoggedIn) safeReplace(router, "/");
     // Fetch LIVE weather data for pills
-    const city = worker?.city || "mumbai";
+    if (!isLoggedIn || !worker?.city) return;
+    const city = worker.city;
     fetch(`/api/weather?city=${encodeURIComponent(city)}`)
       .then((r) => r.json())
       .then((d) => {
@@ -152,25 +153,25 @@ export default function DashboardPage() {
           const a = d.aqi;
           setWeatherPills([
             {
-              label: `🌡️ ${w.temperature}°C`,
+              label: `🌡️ ${w.temperature ?? "--"}°C`,
               color: w.temperature > 42 ? "#ef4444" : w.temperature > 35 ? "#f97316" : "#34d399",
             },
             {
-              label: `🌧️ ${w.rainfall1h}mm`,
+              label: `🌧️ ${w.rainfall1h ?? "--"}mm`,
               color: w.rainfall1h > 30 ? "#ef4444" : w.rainfall1h > 0 ? "#3b82f6" : "#34d399",
             },
             {
-              label: `😷 AQI ${a?.aqi ?? "--"}`,
+              label: `😷 US AQI ${a?.aqi ?? "--"}`,
               color: (a?.aqi ?? 0) > 200 ? "#ef4444" : (a?.aqi ?? 0) > 100 ? "#fbbf24" : "#34d399",
             },
             {
-              label: `💨 ${w.windSpeed} km/h`,
+              label: `💨 ${w.windSpeed ?? "--"} km/h`,
               color: w.windSpeed > 40 ? "#ef4444" : "#8892a4",
             },
           ]);
         }
       })
-      .catch(() => {});
+      .catch(() => setWeatherPills(DEFAULT_WEATHER_PILLS));
   }, [isBootstrapping, isLoggedIn, router, worker?.id, worker?.city]);
 
   if (isBootstrapping) {
@@ -522,6 +523,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <p className="text-xs text-gray-500">Weather pills are Open-Meteo model estimates for your city center. US AQI uses coarse CAMS global data, not Indian AQI or street sensors. Unavailable values are shown as --. <a href="https://open-meteo.com/" className="underline">Open-Meteo</a> / <a href="https://atmosphere.copernicus.eu/" className="underline">CAMS</a>.</p>
+
       {/* ── Premium Transparency Card ── */}
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
@@ -591,7 +594,7 @@ export default function DashboardPage() {
 
         <div className="relative">
           {[
-            { step: "1", icon: "🌡️", title: "Environmental Trigger", desc: "Live APIs monitor weather, AQI, & platform status 24/7", color: "#f97316", status: "Running" },
+            { step: "1", icon: "🌡️", title: "Environmental Trigger", desc: "Modelled weather and US AQI preview, not 24/7 monitoring", color: "#f97316", status: "Running" },
             { step: "2", icon: "📍", title: "GPS Verification", desc: "Confirms worker location is within registered delivery zone", color: "#3b82f6", status: "Active" },
             { step: "3", icon: "🤖", title: "AI Fraud Detection", desc: "Isolation Forest ML model scores every claim in <2 seconds", color: "#8b5cf6", status: "Ready" },
             { step: "4", icon: "⚡", title: "Smart Routing", desc: "Score ≤25 → auto-approve | Score >25 → admin review queue", color: "#10b981", status: "Auto" },
