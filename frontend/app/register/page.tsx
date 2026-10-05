@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
 import { calculateWeeklyPremium } from "@/backend/engines/premium-engine";
+import PhoneVerification from "@/frontend/components/auth/PhoneVerification";
 import GoogleSignIn from "@/frontend/components/auth/GoogleSignIn";
 import { safePush } from "@/lib/client/navigation";
 
@@ -214,6 +215,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [registrationProof, setRegistrationProof] = useState("");
+  const [phoneProof, setPhoneProof] = useState("");
   const [phoneError, setPhoneError] = useState("");
 
   const [selectedPersona, setSelectedPersona] = useState("");
@@ -322,6 +324,7 @@ export default function RegisterPage() {
           daysWorkedThisWeek: parseInt(form.daysWorkedThisWeek) || 6,
           totalActiveDeliveryDays: Number(form.totalActiveDeliveryDays),
           registrationProof,
+          phoneProof,
           authMethod: "google",
           daysActiveInLast30: Number(form.daysActiveInLast30),
           consents: { gpsLocation: form.consentGps, bankUpi: form.consentPayout, platformActivity: form.consentActivity },
@@ -408,7 +411,7 @@ export default function RegisterPage() {
             {registrationProof && <p className="text-sm text-emerald-700 my-3">Google account verified. Add your unverified contact phone below.</p>}
             <div>
               <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-2">
-                Mobile Number (unverified)
+                Mobile Number ({phoneProof ? "SMS verified" : "unverified"})
               </label>
               <div className="relative flex items-stretch bg-white border border-slate-200 rounded-xl focus-within:border-orange-500 focus-within:ring-4 focus-within:ring-orange-500/10 transition-all overflow-hidden shadow-sm">
                 <div className="flex items-center px-4 bg-slate-50 border-r border-slate-200">
@@ -422,6 +425,7 @@ export default function RegisterPage() {
                   value={phone}
                   onChange={(e) => {
                     setPhoneError("");
+                    setPhoneProof("");
                     setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
                   }}
                   type="tel"
@@ -435,6 +439,7 @@ export default function RegisterPage() {
               )}
             </div>
 
+            <PhoneVerification key={`${phone}:${registrationProof}`} phone={phone} registrationProof={registrationProof} onVerified={setPhoneProof} />
             <button
               onClick={() => { if (isIndianPhoneValid && registrationProof) setStep("persona"); }}
               disabled={!isIndianPhoneValid || !registrationProof}
@@ -443,7 +448,7 @@ export default function RegisterPage() {
               Continue to work profile →
             </button>
 
-            <p className="text-xs text-center text-gray-500 mt-6">Your phone is a contact field only. It is not verified and cannot be used to sign in. This project does not provide active insurance or payouts.</p>
+            <p className="text-xs text-center text-gray-500 mt-6">Your phone is a contact field, unverified unless an SMS code was checked above. It cannot be used to sign in. This project does not provide active insurance or payouts.</p>
           </div>
         )}
 

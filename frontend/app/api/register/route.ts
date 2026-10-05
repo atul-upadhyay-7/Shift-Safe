@@ -1,4 +1,5 @@
 // Verified local onboarding and underwriting create an unpaid quote, never active cover.
+import { consumeContactPhoneProof } from "@/lib/server/phone-verification";
 import { consumeGoogleProof } from "@/lib/server/google-onboarding";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/backend/models/db";
@@ -162,6 +163,7 @@ export async function POST(req: NextRequest) {
       bankAccount,
       ifscCode,
       registrationProof,
+      phoneProof,
       authMethod,
       daysActiveInLast30,
       consents,
@@ -304,12 +306,17 @@ export async function POST(req: NextRequest) {
     const googleMode = authMethod === "google";
     if (googleMode && req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid registration origin" }, { status: 403 });
     let googleSubject: string | undefined;
+    let contactPhoneVerified = false;
     if (!proofId) return NextResponse.json({ error: "Sign-in verification is required" }, { status: 401 });
     const proofDb = getDb();
     if (googleMode) {
       const identity = await consumeGoogleProof(proofId);
       if (!identity) return NextResponse.json({ error: "Google sign-in expired or already used. Sign in again." }, { status: 401 });
       googleSubject = identity.subject;
+      if (phoneProof) {
+        contactPhoneVerified = await consumeContactPhoneProof(`google:${googleSubject}`, sanitizedPhone, String(phoneProof));
+        if (!contactPhoneVerified) return NextResponse.json({ error: "Phone verification expired, mismatched or already used. Verify again." }, { status: 401 });
+      }
       safeEmail = identity.email;
       const existingIdentity = await proofDb.prepare("SELECT worker_id FROM worker_identities WHERE provider = ? AND subject = ?").get("google", googleSubject);
       if (existingIdentity) return NextResponse.json({ error: "Google account already registered. Sign in instead." }, { status: 409 });
@@ -386,7 +393,7 @@ export async function POST(req: NextRequest) {
 
     if (googleSubject) {
       statements.push({ query: "INSERT INTO worker_identities (provider, subject, worker_id) VALUES (?, ?, ?)", params: ["google", googleSubject, workerId] });
-      statements.push({ query: "INSERT INTO worker_contacts (worker_id, phone, phone_verified) VALUES (?, ?, 0)", params: [workerId, sanitizedPhone] });
+      statements.push({ query: "INSERT INTO worker_contacts (worker_id, phone, phone_verified) VALUES (?, ?, ?)", params: [workerId, sanitizedPhone, contactPhoneVerified ? 1 : 0] });
     }
 
     statements.push({ query: "INSERT INTO registration_consents (worker_id, gps_location, bank_upi, platform_activity) VALUES (?, ?, ?, ?)", params: [workerId, dpdpConsents.gpsLocation ? 1 : 0, dpdpConsents.bankUpi ? 1 : 0, dpdpConsents.platformActivity ? 1 : 0] });
