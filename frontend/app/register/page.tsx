@@ -215,6 +215,13 @@ export default function RegisterPage() {
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [registrationProof, setRegistrationProof] = useState("");
+  const [idToken, setIdToken] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [phoneProof, setPhoneProof] = useState("");
   const [phoneError, setPhoneError] = useState("");
 
@@ -262,6 +269,22 @@ export default function RegisterPage() {
       update("zone", currentCity.zones[0]);
     }
   }, [form.city]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("shiftsafe-email-onboarding");
+    if (!saved) return;
+    try {
+      const data = JSON.parse(saved);
+      if (!data.registrationProof || !data.email || !data.phone || data.expiresAt <= Date.now()) { sessionStorage.removeItem("shiftsafe-email-onboarding"); return; }
+      setRegistrationProof(data.registrationProof);
+      setGoogleEmail(data.email);
+      setConfirmEmail(data.email);
+      setEmailVerified(true);
+      setPhone(data.phone);
+      setForm(prev => ({ ...prev, name: data.name || prev.name }));
+      setStep("persona");
+    } catch { /* An invalid local handoff cannot authorize server registration. */ }
+  }, []);
 
   const handlePersonaSelect = (personaId: string) => {
     setSelectedPersona(personaId);
@@ -343,6 +366,7 @@ export default function RegisterPage() {
         return;
       }
 
+      sessionStorage.removeItem("shiftsafe-email-onboarding");
       await refreshSession();
       safePush(router, "/dashboard");
     } catch {
@@ -366,7 +390,7 @@ export default function RegisterPage() {
             Step {stepIndex + 1} of 4
           </div>
           <div className="text-[10px] text-gray-400">
-            {step === "phone" && "Google account and phone"}
+            {step === "phone" && "Google account and email"}
             {step === "persona" && "Work Profile"}
             {step === "profile" && "Details"}
             {step === "calculating" && "AI Quote"}
@@ -399,16 +423,23 @@ export default function RegisterPage() {
                 <span className="text-gradient-orange">Profile</span>
               </h1>
               <p className="text-sm text-gray-600">
-                Sign in with Google, then add your contact number
+                Sign in with Google, enter your email and open the link we send
               </p>
             </div>
 
             <GoogleSignIn onSuccess={async (data) => {
               if (data.registered) { await refreshSession(); safePush(router, "/dashboard"); return; }
               setRegistrationProof(data.registrationProof || "");
+              setIdToken(data.idToken || "");
+              setGoogleEmail(data.email || "");
+              setConfirmEmail("");
+              setEmailVerified(false);
+              setPhoneProof("");
+              setEmailMessage("");
+              setEmailError("");
               if (data.name) update("name", data.name);
             }} />
-            {registrationProof && <p className="text-sm text-emerald-700 my-3">Google account verified. Add your unverified contact phone below.</p>}
+            {registrationProof && <p className="text-sm text-emerald-700 my-3">Google account authenticated. Confirm its email below and add a contact phone. Work Profile stays locked until you open the email link.</p>}
             <div>
               <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-2">
                 Mobile Number ({phoneProof ? "SMS verified" : "unverified"})
@@ -439,10 +470,28 @@ export default function RegisterPage() {
               )}
             </div>
 
+            {registrationProof && !emailVerified && <div className="mt-5 space-y-3">
+              <label htmlFor="onboarding-email" className="block text-sm font-bold">Enter your Google account email</label>
+              <p className="text-xs text-gray-500">Selected account: {googleEmail}. Use this same email. To use a different account, select it with Google first.</p>
+              <input id="onboarding-email" type="email" autoComplete="email" className="w-full border border-slate-200 rounded-xl px-4 py-3" value={confirmEmail} onChange={e => setConfirmEmail(e.target.value)} placeholder="Your Google email" />
+              <button className="btn btn-primary w-full disabled:opacity-50" disabled={emailBusy || !isIndianPhoneValid || !idToken || confirmEmail.trim().toLowerCase() !== googleEmail.toLowerCase()} onClick={async () => {
+                setEmailBusy(true); setEmailError(""); setEmailMessage("");
+                try {
+                  const response = await fetch("/api/auth/email/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, email: confirmEmail, phone }) });
+                  const data = await response.json();
+                  if (!response.ok) throw new Error(data.error || "Could not request the email link.");
+                  setEmailMessage(data.message);
+                } catch (err) { setEmailError(err instanceof Error ? err.message : "Could not request the email link."); }
+                finally { setEmailBusy(false); }
+              }}>{emailBusy ? "Requesting link..." : "Send email verification link"}</button>
+              {emailMessage && <p role="status" className="text-sm text-emerald-700">{emailMessage}</p>}
+              {emailError && <p role="alert" className="text-sm text-red-600">{emailError}</p>}
+            </div>}
+            {emailVerified && <p className="mt-4 text-sm text-emerald-700">Email link verified. Work Profile unlocked.</p>}
             <PhoneVerification key={`${phone}:${registrationProof}`} phone={phone} registrationProof={registrationProof} onVerified={setPhoneProof} />
             <button
-              onClick={() => { if (isIndianPhoneValid && registrationProof) setStep("persona"); }}
-              disabled={!isIndianPhoneValid || !registrationProof}
+              onClick={() => { if (isIndianPhoneValid && registrationProof && emailVerified) setStep("persona"); }}
+              disabled={!isIndianPhoneValid || !registrationProof || !emailVerified}
               className="btn btn-primary w-full text-lg font-bold py-4 rounded-xl mt-6 disabled:opacity-50"
             >
               Continue to work profile →

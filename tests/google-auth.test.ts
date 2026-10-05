@@ -12,6 +12,15 @@ process.env.SEED_DEMO_DATA = "false";
 process.env.FIREBASE_PROJECT_ID = "test-project";
 process.env.WORKER_SESSION_SECRET = "google-worker-test-only-secret-1234567890";
 function request(body: unknown, cookie?: string) { return new NextRequest("http://localhost/api/register", { method: "POST", headers: { origin: "http://localhost", "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) }); }
+async function verifiedProof(identity: { subject: string; email: string; name: string }) {
+  const { randomUUID, createHash } = await import("node:crypto");
+  const { getDb } = await import("../backend/src/models/db");
+  const { redeemEmailOnboarding } = await import("../frontend/lib/server/email-onboarding");
+  const challenge = randomUUID();
+  await getDb().prepare("INSERT INTO email_onboarding_challenges (id, subject, email, name, phone, expires_at) VALUES (?, ?, ?, ?, ?, ?)").run(createHash("sha256").update(challenge).digest("hex"), identity.subject, identity.email, identity.name, "9000000001", Date.now() + 60000);
+  const result = await redeemEmailOnboarding(challenge, "fixture-provider-code", async action => action === "resetPassword" ? { requestType: "VERIFY_EMAIL", email: identity.email } : { localId: identity.subject, email: identity.email, emailVerified: true });
+  return { ...result, registered: false };
+}
 test("Google token verification rejects invalid identity and signature", async () => {
   const { verifyGoogleIdentity } = await import("../frontend/lib/server/google-auth");
   const { privateKey, publicKey } = await generateKeyPair("RS256");
@@ -38,7 +47,7 @@ test("Google onboarding is subject-owned, not unverified-phone or email-owned", 
   const db = getDb();
   const identity = { subject: "google-owner-a", email: "same@example.invalid", name: "Owner A" };
   const base = { name: "Owner A", phone: "9000000001", platform: "Zomato", city: "Mumbai", zone: "Andheri East", avgWeeklyIncome: 4200, daysWorkedThisWeek: 6, totalActiveDeliveryDays: 14, daysActiveInLast30: 14, consents: {}, authMethod: "google" };
-  const proof = await finishGoogleSignIn(identity);
+  const proof = await verifiedProof(identity);
   assert.equal(proof.registered, false);
   const result = await register.POST(request({ ...base, email: "spoof@example.invalid", registrationProof: proof.registrationProof }));
   assert.equal(result.status, 200);
@@ -55,17 +64,17 @@ test("Google onboarding is subject-owned, not unverified-phone or email-owned", 
   const projection = await (await session.GET(get)).json();
   assert.equal(projection.worker.phoneVerified, false); assert.equal(projection.worker.authProvider, "google"); assert.equal(projection.policy, null);
   assert.equal((await authorizeWorker(get, workerId)).workerId, workerId);
-  const second = await finishGoogleSignIn({ ...identity, subject: "google-owner-b" });
+  const second = await verifiedProof({ ...identity, subject: "google-owner-b" });
   assert.equal(second.registered, false);
   const secondRes = await register.POST(request({ ...base, registrationProof: second.registrationProof }));
   assert.equal(secondRes.status, 200);
   assert.notEqual((await secondRes.json()).workerId, workerId);
   await t.test("concurrent proof consumption has one winner", async () => {
-    const p = await finishGoogleSignIn({ ...identity, subject: "race" });
+    const p = await verifiedProof({ ...identity, subject: "race" });
     assert.equal((await Promise.all([consumeGoogleProof(p.registrationProof!), consumeGoogleProof(p.registrationProof!)])).filter(Boolean).length, 1);
   });
   await t.test("expiry and changed subject revoke authorization", async () => {
-    const p = await finishGoogleSignIn({ ...identity, subject: "expire" });
+    const p = await verifiedProof({ ...identity, subject: "expire" });
     await db.prepare("UPDATE google_registration_proofs SET expires_at = 0").run();
     assert.equal(await consumeGoogleProof(p.registrationProof!), null);
     await db.prepare("UPDATE worker_identities SET subject = ? WHERE worker_id = ?").run("changed", workerId);
@@ -86,11 +95,10 @@ test("Google endpoint origin and configuration fail closed", async () => {
   assert.equal((await POST(own)).status, 401);
 });
 test("different Google proofs cannot create duplicate subject accounts", async () => {
-  const { finishGoogleSignIn } = await import("../frontend/lib/server/google-onboarding");
   const { getDb } = await import("../backend/src/models/db");
   const register = await import("../frontend/app/api/register/route");
   const identity = { subject: "two-proof-race", email: "race@example.invalid", name: "Race" };
-  const proofs = await Promise.all([finishGoogleSignIn(identity), finishGoogleSignIn(identity)]);
+  const proofs = await Promise.all([verifiedProof(identity), verifiedProof(identity)]);
   const base = { name: "Race", phone: "9000000088", platform: "Zomato", city: "Mumbai", zone: "Andheri East", avgWeeklyIncome: 4200, daysWorkedThisWeek: 6, totalActiveDeliveryDays: 14, daysActiveInLast30: 14, consents: {}, authMethod: "google" };
   const results = await Promise.all(proofs.map(p => register.POST(request({ ...base, registrationProof: p.registrationProof }))));
   assert.equal(results.filter(r => r.status === 200).length, 1);

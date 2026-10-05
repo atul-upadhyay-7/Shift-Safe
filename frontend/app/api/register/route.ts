@@ -311,7 +311,7 @@ export async function POST(req: NextRequest) {
     const proofDb = getDb();
     if (googleMode) {
       const identity = await consumeGoogleProof(proofId);
-      if (!identity) return NextResponse.json({ error: "Google sign-in expired or already used. Sign in again." }, { status: 401 });
+      if (!identity) return NextResponse.json({ error: "Open your email verification link first. The onboarding grant may have expired or already been used." }, { status: 401 });
       googleSubject = identity.subject;
       if (phoneProof) {
         contactPhoneVerified = await consumeContactPhoneProof(`google:${googleSubject}`, sanitizedPhone, String(phoneProof));

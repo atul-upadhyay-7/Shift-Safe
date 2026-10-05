@@ -468,6 +468,21 @@ async function initSchema(db: any) {
       worker_id TEXT NOT NULL UNIQUE,
       PRIMARY KEY (provider, subject)
     );
+    CREATE TABLE IF NOT EXISTS email_onboarding_challenges (
+      id TEXT PRIMARY KEY,
+      subject TEXT NOT NULL,
+      email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      state TEXT NOT NULL DEFAULT 'pending'
+    );
+    CREATE TABLE IF NOT EXISTS email_send_usage (
+      id TEXT PRIMARY KEY,
+      sends INTEGER NOT NULL DEFAULT 0,
+      last_send_at BIGINT NOT NULL DEFAULT 0
+    );
     CREATE TABLE IF NOT EXISTS google_registration_proofs (
       id TEXT PRIMARY KEY,
       subject TEXT NOT NULL,
@@ -733,6 +748,7 @@ async function migrateLegacyPhoneConstraint(db: any) {
 
 async function ensureWorkerPayoutColumns(db: any) {
   const migrationStatements = [
+    "ALTER TABLE google_registration_proofs ADD COLUMN email_link_verified INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE workers ADD COLUMN payout_method TEXT DEFAULT 'upi'",
     "ALTER TABLE workers ADD COLUMN upi_id TEXT",
     "ALTER TABLE workers ADD COLUMN bank_account TEXT",

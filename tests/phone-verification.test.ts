@@ -110,6 +110,7 @@ test("registration persists an exact owner phone proof and rejects a different c
   const base = { name: "Phone Test", phone: "9000000001", platform: "Zomato", city: "Mumbai", zone: "Andheri East", avgWeeklyIncome: 4200, daysWorkedThisWeek: 6, totalActiveDeliveryDays: 14, daysActiveInLast30: 14, consents: {}, authMethod: "google" };
   const req = (body: object) => new NextRequest("http://localhost/api/register", { method: "POST", headers: { origin: "http://localhost", "content-type": "application/json" }, body: JSON.stringify(body) });
   const google = await finishGoogleSignIn({ subject: "verified-contact", email: "phone@example.invalid" });
+  await db.prepare("UPDATE google_registration_proofs SET email_link_verified = 1 WHERE subject = ?").run("verified-contact");
   const proof = "exact-contact-proof";
   await db.prepare("INSERT INTO contact_phone_proofs (id, owner_key, phone, expires_at) VALUES (?, ?, ?, ?)").run(phoneProofHash(proof), "google:verified-contact", base.phone, Date.now() + 60000);
   const res = await register.POST(req({ ...base, registrationProof: google.registrationProof, phoneProof: proof }));
@@ -117,6 +118,7 @@ test("registration persists an exact owner phone proof and rejects a different c
   const contact = await db.prepare("SELECT c.phone_verified FROM worker_contacts c JOIN worker_identities i ON i.worker_id = c.worker_id WHERE i.subject = ?").get("verified-contact");
   assert.equal(contact?.phone_verified, 1);
   const other = await finishGoogleSignIn({ subject: "mismatched-contact", email: "other@example.invalid" });
+  await db.prepare("UPDATE google_registration_proofs SET email_link_verified = 1 WHERE subject = ?").run("mismatched-contact");
   await db.prepare("INSERT INTO contact_phone_proofs (id, owner_key, phone, expires_at) VALUES (?, ?, ?, ?)").run(phoneProofHash("wrong-contact-proof"), "google:mismatched-contact", "9000000002", Date.now() + 60000);
   assert.equal((await register.POST(req({ ...base, registrationProof: other.registrationProof, phoneProof: "wrong-contact-proof" }))).status, 401);
   assert.equal(await db.prepare("SELECT worker_id FROM worker_identities WHERE subject = ?").get("mismatched-contact"), undefined);

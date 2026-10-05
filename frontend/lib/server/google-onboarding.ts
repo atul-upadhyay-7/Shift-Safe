@@ -13,13 +13,13 @@ export async function finishGoogleSignIn(identity: GoogleIdentity) {
   await db.prepare("DELETE FROM google_registration_proofs WHERE expires_at < ?").run(Date.now() - 24 * 60 * 60 * 1000);
   const proof = randomUUID();
   await db.prepare("INSERT INTO google_registration_proofs (id, subject, email, expires_at) VALUES (?, ?, ?, ?)").run(hash(proof), identity.subject, identity.email, Date.now() + 10 * 60 * 1000);
-  return { registered: false as const, registrationProof: proof, name: identity.name };
+  return { registered: false as const, registrationProof: proof, name: identity.name, email: identity.email };
 }
 export async function consumeGoogleProof(proof: string) {
   const db = getDb();
   const id = hash(proof);
-  const row = await db.prepare("SELECT subject, email FROM google_registration_proofs WHERE id = ? AND consumed = 0 AND expires_at > ?").get(id, Date.now()) as { subject: string; email: string } | undefined;
+  const row = await db.prepare("SELECT subject, email FROM google_registration_proofs WHERE id = ? AND consumed = 0 AND expires_at > ? AND email_link_verified = 1").get(id, Date.now()) as { subject: string; email: string } | undefined;
   if (!row) return null;
-  const updated = await db.prepare("UPDATE google_registration_proofs SET consumed = 1 WHERE id = ? AND consumed = 0 AND expires_at > ?").run(id, Date.now());
+  const updated = await db.prepare("UPDATE google_registration_proofs SET consumed = 1 WHERE id = ? AND consumed = 0 AND expires_at > ? AND email_link_verified = 1").run(id, Date.now());
   return updated.changes === 1 ? row : null;
 }

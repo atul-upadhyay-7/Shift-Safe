@@ -18,7 +18,7 @@ const STATS = [
 ];
 const FAQS = [
   { q: "Is this working insurance?", a: "No. This is a personal prototype. Registration can create a work profile and an unpaid quote when configured. It does not activate insurance, accept payments or send payouts." },
-  { q: "Is my phone verified?", a: "No. Google sign-in verifies your Google account. Your phone is an unverified contact field and cannot be used to sign in." },
+  { q: "Is my phone verified?", a: "Your phone is a contact field, unverified unless the optional trial SMS check succeeds. Google is used to sign in; a fresh email link unlocks new-user onboarding. SMS is limited to approved trial testers." },
   { q: "How are quotes calculated?", a: "The existing pricing model uses profile activity and risk inputs. Its rates, eligibility rules and terms still need review. A quote is not a binding insurance offer." },
   { q: "Does the app monitor disruptions?", a: "Trigger checks are previews only. Authoritative event sources and financial reconciliation still need integration. No detection-rate or payout-time guarantee is made." },
 ];
@@ -166,7 +166,7 @@ export default function SplashPage() {
           </div>
           <div className="space-y-2">
             {[
-              { step: "1", icon: "🔐", title: "Sign in", desc: "Use your Google account when the owner has configured sign-in" },
+              { step: "1", icon: "🔐", title: "Sign in", desc: "Use Google, then open your email link to unlock onboarding" },
               { step: "2", icon: "📝", title: "Create profile", desc: "Enter actual activity and choose data permissions" },
               { step: "3", icon: "📊", title: "Preview quote", desc: "An eligible profile receives a pending, unpaid quote" },
               { step: "4", icon: "🛠️", title: "No financial effects", desc: "Payments, activation and payouts remain disabled" },
