@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, randomBytes } from "node:crypto";
 import { getDb } from "@/backend/models/db";
 import { type GoogleIdentity } from "./google-auth";
 
@@ -36,35 +36,31 @@ export async function startEmailOnboarding(identity: GoogleIdentity, token: stri
   if (owner.changes !== 1) throw new EmailOnboardingError("Wait 60 seconds before resending. Each account can request up to 5 links per UTC day.", 429);
   const global = await db.prepare("UPDATE email_send_usage SET sends = sends + 1, last_send_at = ? WHERE id = ? AND sends < 100").run(now, globalKey);
   if (global.changes !== 1) throw new EmailOnboardingError("Today's app email limit is reached. Try tomorrow.", 429);
-  const challenge = randomUUID();
+  const challenge = randomBytes(32).toString("hex");
   const continueUrl = new URL("/auth/email", origin);
-  continueUrl.searchParams.set("challenge", challenge);
+  // Fragment keeps the email-only bearer out of HTTP request URLs and access logs.
+  continueUrl.hash = new URLSearchParams({ nonce: challenge }).toString();
   await db.prepare("INSERT INTO email_onboarding_challenges (id, subject, email, name, phone, expires_at, state) VALUES (?, ?, ?, ?, ?, ?, ?)").run(hash(challenge), identity.subject, identity.email, identity.name, phone, now + 30 * 60 * 1000, "sending");
   try {
-    const sent = await call("sendOobCode", { requestType: "VERIFY_EMAIL", idToken: token, continueUrl: continueUrl.toString() });
+    const sent = await call("sendOobCode", { requestType: "VERIFY_EMAIL", idToken: token, continueUrl: continueUrl.toString(), canHandleCodeInApp: false });
     if (typeof sent.email !== "string" || sent.email.toLowerCase() !== identity.email.toLowerCase()) throw new EmailOnboardingError("Firebase did not accept the intended email recipient.", 503);
-    await db.prepare("UPDATE email_onboarding_challenges SET state = 'pending' WHERE id = ? AND state = 'sending'").run(hash(challenge));
+    await db.prepare("UPDATE email_onboarding_challenges SET state = 'email-link-pending' WHERE id = ? AND state = 'sending'").run(hash(challenge));
   } catch (error) {
     await db.prepare("UPDATE email_onboarding_challenges SET state = 'failed' WHERE id = ?").run(hash(challenge));
     throw error;
   }
   return { message: "Link requested. Check your inbox and spam folder. Open the email link to unlock Work Profile. Delivery is not guaranteed." };
 }
-export async function redeemEmailOnboarding(challenge: string, code: string, call: FirebaseEmailCall = firebaseEmailCall) {
-  if (!/^[0-9a-f-]{36}$/i.test(challenge) || !code || code.length > 2048) throw new EmailOnboardingError("Invalid email link.");
+export async function redeemEmailOnboarding(nonce: string) {
+  if (!/^[0-9a-f]{64}$/.test(nonce)) throw new EmailOnboardingError("Invalid email link.");
   const db = getDb();
-  const id = hash(challenge);
-  const reserved = await db.prepare("UPDATE email_onboarding_challenges SET attempts = attempts + 1, state = 'checking' WHERE id = ? AND state = 'pending' AND expires_at > ? AND attempts < 5").run(id, Date.now());
+  const id = hash(nonce);
+  // Only possession of the email-only bearer grants progress. Google email_verified
+  // and hosted-widget redirect claims are not proof of fresh inbox access.
+  const reserved = await db.prepare("UPDATE email_onboarding_challenges SET state = 'checking' WHERE id = ? AND state = 'email-link-pending' AND expires_at > ?").run(id, Date.now());
   if (reserved.changes !== 1) throw new EmailOnboardingError("This onboarding link expired, is already in use or has been used. Sign in and request a new link.", 401);
-  const row = await db.prepare("SELECT subject, email, name, phone FROM email_onboarding_challenges WHERE id = ?").get(id) as { subject: string; email: string; name: string; phone: string };
-  let codeApplied = false;
   try {
-    // checkActionCode's REST endpoint confirms purpose/email without consuming the code.
-    const checked = await call("resetPassword", { oobCode: code });
-    if (checked.requestType !== "VERIFY_EMAIL" || typeof checked.email !== "string" || checked.email.toLowerCase() !== row.email.toLowerCase()) throw new EmailOnboardingError("This link does not verify the requested Google email.", 401);
-    const result = await call("update", { oobCode: code });
-    codeApplied = true;
-    if (result.localId !== row.subject || result.emailVerified !== true || typeof result.email !== "string" || result.email.toLowerCase() !== row.email.toLowerCase()) throw new EmailOnboardingError("This link belongs to a different Google identity.", 401);
+    const row = await db.prepare("SELECT subject, email, name, phone FROM email_onboarding_challenges WHERE id = ?").get(id) as { subject: string; email: string; name: string; phone: string };
     const proof = randomUUID();
     const expiresAt = Date.now() + 60 * 60 * 1000;
     await db.batch([
@@ -73,7 +69,8 @@ export async function redeemEmailOnboarding(challenge: string, code: string, cal
     ]);
     return { registrationProof: proof, email: row.email, name: row.name, phone: row.phone, expiresAt };
   } catch (error) {
-    await db.prepare("UPDATE email_onboarding_challenges SET state = ? WHERE id = ? AND state = 'checking'").run(codeApplied ? "failed" : "pending", id);
+    // Fail closed on a database error. Never release a reserved bearer for reuse.
+    await db.prepare("UPDATE email_onboarding_challenges SET state = 'failed' WHERE id = ? AND state = 'checking'").run(id);
     throw error;
   }
 }

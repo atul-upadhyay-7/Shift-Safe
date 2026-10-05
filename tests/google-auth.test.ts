@@ -13,12 +13,12 @@ process.env.FIREBASE_PROJECT_ID = "test-project";
 process.env.WORKER_SESSION_SECRET = "google-worker-test-only-secret-1234567890";
 function request(body: unknown, cookie?: string) { return new NextRequest("http://localhost/api/register", { method: "POST", headers: { origin: "http://localhost", "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) }); }
 async function verifiedProof(identity: { subject: string; email: string; name: string }) {
-  const { randomUUID, createHash } = await import("node:crypto");
+  const { randomBytes, createHash } = await import("node:crypto");
   const { getDb } = await import("../backend/src/models/db");
   const { redeemEmailOnboarding } = await import("../frontend/lib/server/email-onboarding");
-  const challenge = randomUUID();
-  await getDb().prepare("INSERT INTO email_onboarding_challenges (id, subject, email, name, phone, expires_at) VALUES (?, ?, ?, ?, ?, ?)").run(createHash("sha256").update(challenge).digest("hex"), identity.subject, identity.email, identity.name, "9000000001", Date.now() + 60000);
-  const result = await redeemEmailOnboarding(challenge, "fixture-provider-code", async action => action === "resetPassword" ? { requestType: "VERIFY_EMAIL", email: identity.email } : { localId: identity.subject, email: identity.email, emailVerified: true });
+  const challenge = randomBytes(32).toString("hex");
+  await getDb().prepare("INSERT INTO email_onboarding_challenges (id, subject, email, name, phone, expires_at, state) VALUES (?, ?, ?, ?, ?, ?, ?)").run(createHash("sha256").update(challenge).digest("hex"), identity.subject, identity.email, identity.name, "9000000001", Date.now() + 60000, "email-link-pending");
+  const result = await redeemEmailOnboarding(challenge);
   return { ...result, registered: false };
 }
 test("Google token verification rejects invalid identity and signature", async () => {

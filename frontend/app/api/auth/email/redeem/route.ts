@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   if (!consumeRateLimit(`email-redeem:${getClientIp(req)}`, 20, 10 * 60 * 1000).allowed) return NextResponse.json({ error: "Too many link checks. Try later." }, { status: 429 });
   try {
     const body = await req.json();
-    return NextResponse.json(await redeemEmailOnboarding(String(body.challenge || ""), String(body.oobCode || "")), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await redeemEmailOnboarding(String(body.nonce || "")), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof EmailOnboardingError ? error.message : "Email verification unavailable. Request a new link." }, { status: error instanceof EmailOnboardingError ? error.status : 503 });
   }
