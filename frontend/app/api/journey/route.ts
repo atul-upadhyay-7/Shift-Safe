@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { quoteFingerprint } from "@/backend/engines/historical-quote";
 import { getDb } from "@/backend/models/db";
 import { authorizeWorker } from "@/lib/server/authorization";
 import { isJourneyStep, canAdvanceJourney, type JourneyStep } from "@/lib/shared/journey";
@@ -13,14 +14,13 @@ export async function GET(req: NextRequest) {
   const consents = await db.prepare("SELECT gps_location, bank_upi, platform_activity, recorded_at FROM registration_consents WHERE worker_id = ?").get(auth.workerId);
   const contact = await db.prepare("SELECT phone_verified FROM worker_contacts WHERE worker_id = ?").get(auth.workerId);
   const policy = await db.prepare("SELECT id, weekly_premium, max_coverage_per_week, status FROM policies WHERE worker_id = ? ORDER BY created_at DESC LIMIT 1").get(auth.workerId);
-  const calculation = await db.prepare("SELECT factors_json, created_at FROM premium_calculations WHERE worker_id = ? ORDER BY created_at DESC LIMIT 1").get(auth.workerId);
-  let eligibility = null;
-  try { eligibility = journey.eligibility_json ? JSON.parse(journey.eligibility_json) : null; } catch { /* Old record has no reliable snapshot. */ }
+  const snapshot = await db.prepare("SELECT result_json, created_at FROM quote_snapshots WHERE worker_id = ?").get(auth.workerId);
   let quote = null;
   try {
-    const result = calculation?.factors_json ? JSON.parse(calculation.factors_json) : null;
-    if (result && policy && !eligibility?.quoteInvalidated) quote = { weeklyPremium: policy.weekly_premium, coverageAmount: policy.max_coverage_per_week, status: policy.status, calculatedAt: calculation.created_at, pricingBreakdown: result.pricingBreakdown, contributions: result.contributions };
-  } catch { /* Never invent an explanation for malformed data. */ }
+    const result=snapshot?.result_json?JSON.parse(snapshot.result_json):null;
+    if(result?.assumptions?.version === "weather-proxy-2026-10-06" && result?.inputs && quoteFingerprint({...result.inputs,city:worker.city,zone:worker.zone,platform:worker.platform,income:Number(worker.avg_weekly_income)})===quoteFingerprint(result.inputs)) quote={...result,calculatedAt:snapshot.created_at};
+  }catch { /* Invalid/stale snapshots are never priced by fallback. */ }
+  const eligibility={eligible:false,reason:worker.insurance_opted_out?"You chose not to request insurance.":"Food-delivery prototype participation only. Government scheme eligibility and insurer underwriting have not been verified.",warnings:["Lifetime delivery days do not establish 90/120 financial-year eligibility. No legal entitlement or insurance offer is made."]};
   return NextResponse.json({ step: isJourneyStep(journey?.step) ? journey.step : "profile", worker, consents: consents || null, phoneVerified: contact?.phone_verified === 1, eligibility, quote, policy: policy || null, mode: "prototype", financialServicesEnabled: false }, { headers: { "Cache-Control": "no-store" } });
 }
 

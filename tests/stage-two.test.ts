@@ -30,7 +30,7 @@ test("Stage 2 persisted journey, private drafts and profile corrections", async 
     assert.equal((await journey.GET(request("/api/journey"))).status, 401);
     assert.equal((await journey.POST(request("/api/journey", { step: "eligibility" }, cookie, "https://other.invalid"))).status, 403);
     const data = await (await journey.GET(request("/api/journey", undefined, cookie))).json();
-    assert.equal(data.step, "profile"); assert.equal(data.eligibility, null); assert.equal(data.quote, null);
+    assert.equal(data.step, "profile"); assert.equal(data.eligibility.eligible, false); assert.equal(data.quote, null);
     assert.equal(data.worker.days_worked_this_week, 0); assert.equal(data.financialServicesEnabled, false);
     assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM workers").get()).n, 2);
   });
@@ -72,7 +72,7 @@ test("Stage 2 persisted journey, private drafts and profile corrections", async 
     assert.equal((await profile.POST(request("/api/profile", { ...body, daysWorkedThisWeek: "" }, cookie))).status, 400);
     assert.equal((await profile.POST(request("/api/profile", body, cookie))).status, 200);
     const saved = await (await journey.GET(request("/api/journey", undefined, cookie))).json();
-    assert.equal(saved.step, "profile"); assert.equal(saved.quote, null); assert.equal(saved.eligibility.quoteInvalidated, true);
+    assert.equal(saved.step, "profile"); assert.equal(saved.quote, null); assert.match(saved.eligibility.reason,/not been verified/);
     assert.equal(saved.worker.days_worked_this_week, 0);
     assert.equal((await db.prepare("SELECT status FROM policies WHERE id = ?").get("policy-a")).status, "pending");
     assert.equal((await db.prepare("SELECT phone FROM workers WHERE id = ?").get("a")).phone, "9000000001");

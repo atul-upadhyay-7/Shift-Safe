@@ -1,9 +1,8 @@
-// Verified local onboarding and underwriting create an unpaid quote, never active cover.
+// Verified onboarding creates an unpriced pending prototype record, never active cover.
 import { consumeContactPhoneProof } from "@/lib/server/phone-verification";
 import { consumeGoogleProof } from "@/lib/server/google-onboarding";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/backend/models/db";
-import { calculateDynamicPremium } from "@/backend/engines/premium-engine";
 import { underwriteWorker } from "@/backend/engines/underwriting-engine";
 import { isProduction, getWorkerSessionSecret } from "@/lib/server/env";
 import {
@@ -429,54 +428,8 @@ export async function POST(req: NextRequest) {
       }, googleSubject);
     }
 
-    // run the pricing engine
-    const premium = await calculateDynamicPremium(
-      safeIncome,
-      safeZone,
-      shiftType || "full_day",
-      0,
-      "clear",
-      safePlatform,
-      safeCity,
-      safeDaysWorked,
-      safeActiveDays,
-    );
-
-    // A quote is not paid cover. Activation requires verified payment in the payment stage.
-    await writes
-      .prepare(
-        `INSERT INTO policies (id, worker_id, plan_name, premium_tier, weekly_premium, max_coverage_per_week, max_payout_percent, status, city_pool)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        policyId,
-        workerId,
-        premium.premiumTierName,
-        premium.activityTier,
-        premium.weeklyPremium,
-        premium.coverageAmount,
-        50.0,
-        "pending",
-        premium.cityPool,
-      );
-
-    // save the full calculation for audit trail
-    await writes
-      .prepare(
-        `INSERT INTO premium_calculations (id, worker_id, base_premium, zone_risk_factor, weather_risk_factor, historical_claim_factor, platform_risk_factor, final_premium, factors_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        crypto.randomUUID(),
-        workerId,
-        premium.basePremium,
-        premium.factors.baseZoneRisk,
-        premium.mlMetrics.weatherRiskVolatility,
-        premium.factors.historicalClaims,
-        premium.factors.platformStability,
-        premium.finalPremium,
-        JSON.stringify(premium),
-      );
+    // Unpaid placeholder only. The historical quote requires an explicit schedule later.
+    await writes.prepare(`INSERT INTO policies (id,worker_id,plan_name,premium_tier,weekly_premium,max_coverage_per_week,max_payout_percent,status,city_pool) VALUES (?,?,?,?,?,?,?,?,?)`).run(policyId,workerId,"Unpriced prototype record","unpriced",0,0,0,"pending",safeCity);
 
     // Log weekly activity
     const weekStart = new Date();
@@ -511,14 +464,8 @@ export async function POST(req: NextRequest) {
         steps: underwriting.steps,
         warnings: underwriting.warnings,
       },
-      premium: {
-        weekly: premium.finalPremium,
-        tierName: premium.premiumTierName,
-        maxPayoutPerWeek: premium.maxPayoutPerWeek,
-        breakdown: premium.breakdown,
-        riskLevel: premium.riskLevel,
-        pricingBreakdown: premium.pricingBreakdown,
-      },
+      premium: null,
+      quoteStatus: "schedule_required",
     }, googleSubject);
   } catch (err) {
     console.error("Registration error:", err);

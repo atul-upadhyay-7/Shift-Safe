@@ -16,8 +16,9 @@ export async function POST(req: NextRequest) {
   const prior = await db.prepare("SELECT step, eligibility_json FROM worker_journeys WHERE worker_id = ?").get(auth.workerId);
   // Existing policy and financial records stay untouched. Their quote is no longer a current profile assessment.
   await db.batch([
+    {query:"DELETE FROM quote_snapshots WHERE worker_id = ?",params:[auth.workerId]},
     { query: "UPDATE workers SET name = ?, platform = ?, city = ?, zone = ?, avg_weekly_income = ?, days_worked_this_week = ?, active_delivery_days = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", params: [name, body.platform, city, zone, income, days, lifetime, auth.workerId] },
-    { query: "INSERT INTO worker_journeys (worker_id, step, eligibility_json) VALUES (?, ?, ?) ON CONFLICT (worker_id) DO UPDATE SET step = EXCLUDED.step, eligibility_json = EXCLUDED.eligibility_json, updated_at = CURRENT_TIMESTAMP", params: [auth.workerId, "profile", JSON.stringify({ eligible: false, assessmentUnavailable: true, quoteInvalidated: true, reason: "Work details changed. The prior eligibility and quote do not assess this profile. Reassessment is not yet available.", previousStep: prior?.step || null })] },
+    { query: "INSERT INTO worker_journeys (worker_id, step, eligibility_json) VALUES (?, ?, ?) ON CONFLICT (worker_id) DO UPDATE SET step = EXCLUDED.step, eligibility_json = EXCLUDED.eligibility_json, updated_at = CURRENT_TIMESTAMP", params: [auth.workerId, "profile", JSON.stringify({ eligible: false, assessmentUnavailable: true, quoteInvalidated: true, reason: "Work details changed. The prior eligibility and quote do not assess this profile. Calculate a new historical estimate with your actual schedule.", previousStep: prior?.step || null })] },
   ]);
   return NextResponse.json({ saved: true, step: "profile", financialServicesEnabled: false });
 }

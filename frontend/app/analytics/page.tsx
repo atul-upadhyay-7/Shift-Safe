@@ -205,12 +205,13 @@ export default function AnalyticsPage() {
         claimsHistory: String(simInput.claimsHistory),
       });
       const res = await fetch(`/api/premium?${params.toString()}`);
-      const data = (await res.json()) as PremiumSimulationResult;
+      await res.json();
       if (!res.ok) {
         setSimError("Unable to run premium simulation.");
         return;
       }
-      setSimResult(data);
+      setSimResult(null);
+      setSimError("Fixed-tier simulation retired. Open your journey to calculate an authenticated historical weather proxy estimate with your actual work schedule.");
     } catch {
       setSimError("Unable to run premium simulation.");
     } finally {

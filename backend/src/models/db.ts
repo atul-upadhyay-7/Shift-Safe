@@ -442,6 +442,12 @@ export async function initDb() {
 
 async function initSchema(db: any) {
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS quote_snapshots (
+      worker_id TEXT PRIMARY KEY,
+      input_fingerprint TEXT NOT NULL,
+      result_json TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS worker_journeys (
       worker_id TEXT PRIMARY KEY,
       step TEXT NOT NULL DEFAULT 'profile',

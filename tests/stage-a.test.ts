@@ -71,11 +71,11 @@ test("Stage A trust boundaries and honest onboarding", async (t) => {
     assert.equal((await register.POST(request("/api/register", "POST", base))).status, 401);
     const token = await proof(base.phone);
     assert.equal((await register.POST(request("/api/register", "POST", { ...base, phone: "9000000002", registrationProof: token }))).status, 401);
-    const res = await register.POST(request("/api/register", "POST", { ...base, registrationProof: token }));
+    const res = await register.POST(request("/api/register", "POST", { ...base, wantInsurance:false, registrationProof: token }));
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.policyId, null);
-    assert.equal(data.underwriting.eligible, false);
+    assert.equal(data.underwriting.eligible, true);
     workerId = data.workerId;
     cookie = `${auth.WORKER_SESSION_COOKIE}=${auth.createWorkerSessionToken(workerId, base.phone)}`;
     assert.ok(res.headers.get("set-cookie")?.includes("HttpOnly"));
@@ -112,12 +112,14 @@ test("Stage A trust boundaries and honest onboarding", async (t) => {
     assert.equal(data.worker.upiId, "");
     assert.equal(data.totalEarningsProtected, 0);
   });
-  await t.test("eligible registration creates a pending quote, not active cover", async () => {
+  await t.test("prototype participation creates an unpriced pending record, not active cover", async () => {
     const phone = "9000000004";
     const res = await register.POST(request("/api/register", "POST", { ...base, phone, totalActiveDeliveryDays: 150, daysActiveInLast30: 25, registrationProof: await proof(phone) }));
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.ok(data.policyId);
+    assert.equal(data.premium,null);
+    assert.equal(data.quoteStatus,"schedule_required");
     eligibleId = data.workerId;
     policyId = data.policyId;
     eligibleCookie = `${auth.WORKER_SESSION_COOKIE}=${auth.createWorkerSessionToken(eligibleId, phone)}`;
