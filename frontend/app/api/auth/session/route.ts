@@ -244,9 +244,16 @@ export async function GET(req: NextRequest) {
     )
     .get(session.workerId)) as WorkerRow | undefined;
 
-  if (!worker || !worker.is_active || worker.phone !== session.phone) {
+  if (!worker || !worker.is_active || (!session.googleSubject && worker.phone !== session.phone)) {
     return NextResponse.json({ authenticated: false });
   }
+
+  if (session.googleSubject) {
+    const identity = await db.prepare("SELECT subject FROM worker_identities WHERE worker_id = ? AND provider = ?").get(worker.id, "google");
+    if (identity?.subject !== session.googleSubject) return NextResponse.json({ authenticated: false });
+  }
+  const contact = await db.prepare("SELECT phone, phone_verified FROM worker_contacts WHERE worker_id = ?").get(worker.id);
+  const profilePhone = contact?.phone || worker.phone || "";
 
   const policy = (await db
     .prepare(
@@ -266,7 +273,7 @@ export async function GET(req: NextRequest) {
     .all(worker.id)) as ClaimRow[];
 
   const now = new Date();
-  const workerProfile = mapWorkerToProfile(worker);
+  const workerProfile = { ...mapWorkerToProfile(worker), phone: profilePhone, phoneVerified: false, authProvider: session.googleSubject ? "google" : "local_test" };
   const policyData = mapPolicy(worker, policy, now);
   if (policyData) {
     const payments = await db.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM premium_payments WHERE worker_id = ? AND policy_id = ? AND status = 'paid'").get(worker.id, policy!.id);

@@ -1,4 +1,5 @@
 // Verified local onboarding and underwriting create an unpaid quote, never active cover.
+import { consumeGoogleProof } from "@/lib/server/google-onboarding";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/backend/models/db";
 import { calculateDynamicPremium } from "@/backend/engines/premium-engine";
@@ -24,7 +25,7 @@ async function insertWorkerRecord(
   input: {
     workerId: string;
     sanitizedName: string;
-    sanitizedPhone: string;
+    sanitizedPhone: string | null;
     safeEmail: string | null;
     safePlatform: string;
     safeCity: string;
@@ -111,9 +112,10 @@ function buildAuthedResponse(
   workerId: string,
   phone: string,
   payload: unknown,
+  googleSubject?: string,
 ): NextResponse {
   const res = NextResponse.json(payload);
-  const token = createWorkerSessionToken(workerId, phone);
+  const token = createWorkerSessionToken(workerId, phone, undefined, googleSubject);
   const secureCookie = shouldUseSecureCookie(req);
 
   res.cookies.set(WORKER_SESSION_COOKIE, token, {
@@ -160,6 +162,7 @@ export async function POST(req: NextRequest) {
       bankAccount,
       ifscCode,
       registrationProof,
+      authMethod,
       daysActiveInLast30,
       consents,
     } = body;
@@ -210,7 +213,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Zone is required" }, { status: 400 });
     }
 
-    const safeEmail = email
+    let safeEmail = email
       ? String(email).trim().slice(0, 120).toLowerCase()
       : null;
     if (safeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) {
@@ -298,11 +301,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Registration authentication is not configured" }, { status: 503 });
     }
     const proofId = String(registrationProof || "").trim();
-    if (!proofId) return NextResponse.json({ error: "Phone verification is required" }, { status: 401 });
+    const googleMode = authMethod === "google";
+    if (googleMode && req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid registration origin" }, { status: 403 });
+    let googleSubject: string | undefined;
+    if (!proofId) return NextResponse.json({ error: "Sign-in verification is required" }, { status: 401 });
     const proofDb = getDb();
-    await proofDb.prepare("DELETE FROM registration_proofs WHERE expires_at < ?").run(Date.now() - 24 * 60 * 60 * 1000);
-    const proofConsumed = await proofDb.prepare("UPDATE registration_proofs SET consumed = 1 WHERE id = ? AND phone = ? AND consumed = 0 AND expires_at > ?").run(proofId, sanitizedPhone, Date.now());
-    if (proofConsumed.changes !== 1) return NextResponse.json({ error: "Phone verification expired or already used. Verify again." }, { status: 401 });
+    if (googleMode) {
+      const identity = await consumeGoogleProof(proofId);
+      if (!identity) return NextResponse.json({ error: "Google sign-in expired or already used. Sign in again." }, { status: 401 });
+      googleSubject = identity.subject;
+      safeEmail = identity.email;
+      const existingIdentity = await proofDb.prepare("SELECT worker_id FROM worker_identities WHERE provider = ? AND subject = ?").get("google", googleSubject);
+      if (existingIdentity) return NextResponse.json({ error: "Google account already registered. Sign in instead." }, { status: 409 });
+    } else {
+      await proofDb.prepare("DELETE FROM registration_proofs WHERE expires_at < ?").run(Date.now() - 24 * 60 * 60 * 1000);
+      const consumed = await proofDb.prepare("UPDATE registration_proofs SET consumed = 1 WHERE id = ? AND phone = ? AND consumed = 0 AND expires_at > ?").run(proofId, sanitizedPhone, Date.now());
+      if (consumed.changes !== 1) return NextResponse.json({ error: "Phone verification expired or already used. Verify again." }, { status: 401 });
+    }
 
     // Worker opted out of insurance
     const insuranceOptedOut = wantInsurance === false;
@@ -326,7 +341,7 @@ export async function POST(req: NextRequest) {
     const existing = await db
       .prepare("SELECT id FROM workers WHERE phone = ?")
       .get(sanitizedPhone);
-    if (existing) {
+    if (!googleMode && existing) {
       return NextResponse.json(
         { error: "Phone number already registered" },
         { status: 409 },
@@ -351,7 +366,7 @@ export async function POST(req: NextRequest) {
     await insertWorkerRecord(writes, {
       workerId,
       sanitizedName,
-      sanitizedPhone,
+      sanitizedPhone: googleMode ? null : sanitizedPhone,
       safeEmail,
       safePlatform,
       safeCity,
@@ -369,12 +384,17 @@ export async function POST(req: NextRequest) {
       activityTier: underwriting.activityTier,
     });
 
+    if (googleSubject) {
+      statements.push({ query: "INSERT INTO worker_identities (provider, subject, worker_id) VALUES (?, ?, ?)", params: ["google", googleSubject, workerId] });
+      statements.push({ query: "INSERT INTO worker_contacts (worker_id, phone, phone_verified) VALUES (?, ?, 0)", params: [workerId, sanitizedPhone] });
+    }
+
     statements.push({ query: "INSERT INTO registration_consents (worker_id, gps_location, bank_upi, platform_activity) VALUES (?, ?, ?, ?)", params: [workerId, dpdpConsents.gpsLocation ? 1 : 0, dpdpConsents.bankUpi ? 1 : 0, dpdpConsents.platformActivity ? 1 : 0] });
 
     // If worker opted out or not eligible — skip policy creation
     if (insuranceOptedOut) {
       await db.batch(statements);
-      return buildAuthedResponse(req, workerId, sanitizedPhone, {
+      return buildAuthedResponse(req, workerId, googleMode ? "" : sanitizedPhone, {
         success: true,
         workerId,
         policyId: null,
@@ -384,12 +404,12 @@ export async function POST(req: NextRequest) {
           reason: "Worker opted out of insurance coverage.",
           activityTier: underwriting.activityTier,
         },
-      });
+      }, googleSubject);
     }
 
     if (!underwriting.eligible) {
       await db.batch(statements);
-      return buildAuthedResponse(req, workerId, sanitizedPhone, {
+      return buildAuthedResponse(req, workerId, googleMode ? "" : sanitizedPhone, {
         success: true,
         workerId,
         policyId: null,
@@ -399,7 +419,7 @@ export async function POST(req: NextRequest) {
           activityTier: underwriting.activityTier,
           warnings: underwriting.warnings,
         },
-      });
+      }, googleSubject);
     }
 
     // run the pricing engine
@@ -471,7 +491,7 @@ export async function POST(req: NextRequest) {
 
     await db.batch(statements);
 
-    return buildAuthedResponse(req, workerId, sanitizedPhone, {
+    return buildAuthedResponse(req, workerId, googleMode ? "" : sanitizedPhone, {
       success: true,
       workerId,
       policyId,
@@ -492,7 +512,7 @@ export async function POST(req: NextRequest) {
         riskLevel: premium.riskLevel,
         pricingBreakdown: premium.pricingBreakdown,
       },
-    });
+    }, googleSubject);
   } catch (err) {
     console.error("Registration error:", err);
     return NextResponse.json(

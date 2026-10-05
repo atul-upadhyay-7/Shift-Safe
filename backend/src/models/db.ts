@@ -442,6 +442,24 @@ export async function initDb() {
 
 async function initSchema(db: any) {
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS worker_identities (
+      provider TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      worker_id TEXT NOT NULL UNIQUE,
+      PRIMARY KEY (provider, subject)
+    );
+    CREATE TABLE IF NOT EXISTS google_registration_proofs (
+      id TEXT PRIMARY KEY,
+      subject TEXT NOT NULL,
+      email TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      consumed INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS worker_contacts (
+      worker_id TEXT PRIMARY KEY,
+      phone TEXT NOT NULL,
+      phone_verified INTEGER NOT NULL DEFAULT 0
+    );
     CREATE TABLE IF NOT EXISTS registration_proofs (
       id TEXT PRIMARY KEY,
       phone TEXT NOT NULL,
@@ -458,7 +476,7 @@ async function initSchema(db: any) {
     CREATE TABLE IF NOT EXISTS workers (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      phone TEXT NOT NULL UNIQUE,
+      phone TEXT,
       email TEXT,
       platform TEXT NOT NULL,
       city TEXT NOT NULL,
@@ -676,8 +694,21 @@ async function initSchema(db: any) {
     );
   `);
 
+  await migrateLegacyPhoneConstraint(db);
+  await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS workers_verified_phone_unique ON workers(phone) WHERE phone IS NOT NULL");
   await ensureWorkerPayoutColumns(db);
   await ensureServiceRequestAiColumns(db);
+}
+
+async function migrateLegacyPhoneConstraint(db: any) {
+  if (_dbProvider === "neon") {
+    await db.exec("ALTER TABLE workers ALTER COLUMN phone DROP NOT NULL");
+  } else {
+    const schema = await db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'workers'").get();
+    if (/phone TEXT NOT NULL UNIQUE/i.test(schema?.sql || "")) {
+      throw new Error("Legacy SQLite schema requires an offline migration; use a fresh development database for Google sign-in");
+    }
+  }
 }
 
 async function ensureWorkerPayoutColumns(db: any) {

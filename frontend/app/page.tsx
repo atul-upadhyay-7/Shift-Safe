@@ -5,56 +5,22 @@ import { useAppState } from "@/frontend/components/providers/AppProvider";
 import { safePush } from "@/lib/client/navigation";
 
 const FEATURES = [
-  {
-    emoji: "⚡",
-    title: "Parametric Engine",
-    desc: "AI-driven triggers from 5 data sources detect disruptions in real-time — zero paperwork required.",
-    color: "#f97316",
-  },
-  {
-    emoji: "🤖",
-    title: "Fraud Detection AI",
-    desc: "Isolation Forest ML model scores every claim. GPS spoofing, duplicate claims, and anomaly detection built-in.",
-    color: "#8b5cf6",
-  },
-  {
-    emoji: "💰",
-    title: "Instant UPI Payouts",
-    desc: "Admin-reviewed claims settle via UPI in minutes — not days. Full audit trail from trigger to payout.",
-    color: "#10b981",
-  },
-  {
-    emoji: "📊",
-    title: "Dynamic Pricing",
-    desc: "5-factor ML-style pricing model calculates personalized weekly premiums — ₹10 to ₹40/week.",
-    color: "#3b82f6",
-  },
+  { emoji: "📝", title: "Work profile", desc: "Record the activity you enter and the permissions you choose. Google sign-in verifies your account, not your phone or work history.", color: "#f97316" },
+  { emoji: "📊", title: "Quote preview", desc: "An eligible profile can receive an unpaid quote. It is not active insurance or a promise of coverage.", color: "#3b82f6" },
+  { emoji: "🔒", title: "Account boundaries", desc: "Worker records require a signed-in account. Phone-only legacy accounts are not automatically linked to Google accounts.", color: "#8b5cf6" },
+  { emoji: "🛠️", title: "Payments disabled", desc: "Payment, activation, automatic claims and payout approval are unavailable until real services and checks are integrated.", color: "#10b981" },
 ];
-
 const STATS = [
-  { value: "300M+", label: "Gig Workers in India" },
-  { value: "<30min", label: "Avg. Claim SLA" },
-  { value: "₹10–₹40", label: "Weekly Premium" },
-  { value: "95%", label: "Fraud Catch Rate" },
+  { value: "Project", label: "Personal prototype" },
+  { value: "Google", label: "Account sign-in" },
+  { value: "Pending", label: "Quotes, not cover" },
+  { value: "Off", label: "Payments and payouts" },
 ];
-
 const FAQS = [
-  {
-    q: "How do payouts work?",
-    a: "Claims are automatically generated when parametric triggers fire. They go through AI fraud scoring, then admin review. Approved claims are paid instantly to your linked UPI.",
-  },
-  {
-    q: "Which disruptions are covered?",
-    a: "Heavy rain (>15mm/hr), extreme heat (>42°C), severe pollution (AQI >300), and platform outages (>60min). All verified via live data feeds.",
-  },
-  {
-    q: "How is my premium calculated?",
-    a: "Our 5-factor Dynamic Pricing Engine considers your zone risk, platform stability, weather history, claim history, and activity level — all transparent, no black boxes.",
-  },
-  {
-    q: "What plans are available?",
-    a: "Basic (80% coverage), Medium (default, 100%), and Pro (150%) tiers — tailored to your needs. Select during registration.",
-  },
+  { q: "Is this working insurance?", a: "No. This is a personal prototype. Registration can create a work profile and an unpaid quote when configured. It does not activate insurance, accept payments or send payouts." },
+  { q: "Is my phone verified?", a: "No. Google sign-in verifies your Google account. Your phone is an unverified contact field and cannot be used to sign in." },
+  { q: "How are quotes calculated?", a: "The existing pricing model uses profile activity and risk inputs. Its rates, eligibility rules and terms still need review. A quote is not a binding insurance offer." },
+  { q: "Does the app monitor disruptions?", a: "Trigger checks are previews only. Authoritative event sources and financial reconciliation still need integration. No detection-rate or payout-time guarantee is made." },
 ];
 
 export default function SplashPage() {
@@ -101,15 +67,14 @@ export default function SplashPage() {
           </h1>
 
           <p className="text-base text-slate-300 text-center max-w-xs leading-relaxed mb-4">
-            AI-powered parametric income protection for India&apos;s{" "}
-            <span className="font-semibold text-white">300M+ gig workers</span>
+            A personal income-protection prototype for delivery partners. <span className="font-semibold text-white">No active insurance or payouts.</span>
           </p>
 
           {/* AI badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-sm">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-              AI Risk Engine · Live
+              Prototype · Financial services disabled
             </span>
           </div>
         </div>
@@ -171,14 +136,14 @@ export default function SplashPage() {
                 onClick={() => safePush(router, "/register")}
                 className="w-full py-4 rounded-xl text-lg font-bold bg-primary-500 text-white shadow-[0_8px_24px_rgba(249,115,22,0.4)] hover:bg-primary-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
               >
-                Get Protected Now
+                Create work profile
                 <span className="group-hover:translate-x-1 transition-transform">→</span>
               </button>
               <button
                 onClick={() => safePush(router, "/login")}
                 className="w-full py-3.5 rounded-xl text-base font-bold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
-                🔐 Login with OTP
+                🔐 Sign in with Google
               </button>
             </>
           )}
@@ -189,7 +154,7 @@ export default function SplashPage() {
             <span className="w-5 h-5 rounded-md bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-[10px]">
               👑
             </span>
-            Admin / Insurer Login
+            Project admin login
             <span className="text-xs text-slate-500 group-hover:text-purple-400 transition-colors">→</span>
           </button>
         </div>
@@ -201,10 +166,10 @@ export default function SplashPage() {
           </div>
           <div className="space-y-2">
             {[
-              { step: "1", icon: "📝", title: "Onboard", desc: "Select your delivery persona, city, and get an AI quote" },
-              { step: "2", icon: "🛡️", title: "Activate", desc: "Pay as low as ₹10/week via UPI for instant coverage" },
-              { step: "3", icon: "📡", title: "Monitor", desc: "Our 5-source parametric engine watches for disruptions 24/7" },
-              { step: "4", icon: "💰", title: "Get Paid", desc: "Admin-reviewed claims settle to your UPI instantly" },
+              { step: "1", icon: "🔐", title: "Sign in", desc: "Use your Google account when the owner has configured sign-in" },
+              { step: "2", icon: "📝", title: "Create profile", desc: "Enter actual activity and choose data permissions" },
+              { step: "3", icon: "📊", title: "Preview quote", desc: "An eligible profile receives a pending, unpaid quote" },
+              { step: "4", icon: "🛠️", title: "No financial effects", desc: "Payments, activation and payouts remain disabled" },
             ].map((s, i) => (
               <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/40 border border-slate-700/50">
                 <div className="w-8 h-8 rounded-lg bg-primary-500/15 border border-primary-500/25 flex items-center justify-center text-sm shrink-0">

@@ -1,11 +1,12 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
 import { calculateWeeklyPremium } from "@/backend/engines/premium-engine";
+import GoogleSignIn from "@/frontend/components/auth/GoogleSignIn";
 import { safePush } from "@/lib/client/navigation";
 
-type Step = "phone" | "otp" | "persona" | "profile" | "calculating";
+type Step = "phone" | "persona" | "profile" | "calculating";
 
 const CITIES = [
   // Tier 1 Metro
@@ -214,10 +215,6 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [registrationProof, setRegistrationProof] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [otpError, setOtpError] = useState("");
-  const [otpVerifying, setOtpVerifying] = useState(false);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [selectedPersona, setSelectedPersona] = useState("");
   const [selectedEarningRange, setSelectedEarningRange] = useState("");
@@ -264,81 +261,6 @@ export default function RegisterPage() {
     }
   }, [form.city]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-focus first OTP box
-  useEffect(() => {
-    if (step === "otp") {
-      otpRefs.current[0]?.focus();
-    }
-  }, [step]);
-
-  const handleSendOtp = async () => {
-    if (!isIndianPhoneValid) {
-      setPhoneError("Enter a valid Indian mobile number (starts with 6-9).");
-      return;
-    }
-
-    setPhoneError("");
-    setOtp(["", "", "", "", "", ""]);
-    setOtpError("");
-    try {
-      const res = await fetch("/api/auth/otp/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone }) });
-      const data = await res.json();
-      if (!res.ok) { setPhoneError(data.error || "Phone verification is unavailable"); return; }
-    } catch { setPhoneError("Phone verification is unavailable"); return; }
-    setStep("otp");
-  };
-
-  const verifyOtpCode = async (otpCode: string) => {
-    if (otpVerifying) return;
-
-    setOtpVerifying(true);
-    setOtpError("");
-
-    try {
-      const res = await fetch("/api/auth/otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, otp: otpCode }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setOtpError(data?.error || "OTP verification failed");
-        return;
-      }
-
-      setRegistrationProof(String(data.registrationProof || ""));
-      setStep("persona");
-    } catch {
-      setOtpError("Unable to verify OTP right now. Please try again.");
-    } finally {
-      setOtpVerifying(false);
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) value = value.slice(-1);
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    setOtpError("");
-
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-
-    // Auto-verify when all 6 digits are filled.
-    if (newOtp.every((d) => d !== "")) {
-      void verifyOtpCode(newOtp.join(""));
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
   const handlePersonaSelect = (personaId: string) => {
     setSelectedPersona(personaId);
     const persona = DELIVERY_PERSONAS.find((p) => p.id === personaId);
@@ -359,7 +281,7 @@ export default function RegisterPage() {
   const handleCalculatePremium = async () => {
     setIsSubmitting(true);
     setSubmitError("");
-    if (!registrationProof) { setSubmitError("Verify your phone before registration."); setIsSubmitting(false); return; }
+    if (!registrationProof) { setSubmitError("Sign in with Google before registration."); setIsSubmitting(false); return; }
     if (form.daysActiveInLast30 === "") { setSubmitError("Enter your activity days in the last 30 days."); setIsSubmitting(false); return; }
     if (!form.totalActiveDeliveryDays || !Number.isInteger(Number(form.totalActiveDeliveryDays)) || Number(form.totalActiveDeliveryDays) < 0) { setSubmitError("Enter your actual lifetime active delivery days."); setIsSubmitting(false); return; }
     setStep("calculating");
@@ -400,6 +322,7 @@ export default function RegisterPage() {
           daysWorkedThisWeek: parseInt(form.daysWorkedThisWeek) || 6,
           totalActiveDeliveryDays: Number(form.totalActiveDeliveryDays),
           registrationProof,
+          authMethod: "google",
           daysActiveInLast30: Number(form.daysActiveInLast30),
           consents: { gpsLocation: form.consentGps, bankUpi: form.consentPayout, platformActivity: form.consentActivity },
           wantInsurance: form.wantInsurance,
@@ -428,8 +351,8 @@ export default function RegisterPage() {
   };
 
   // Progress bar
-  const stepIndex = ["phone", "otp", "persona", "profile", "calculating"].indexOf(step);
-  const progressPercent = Math.min(100, ((stepIndex + 1) / 5) * 100);
+  const stepIndex = ["phone", "persona", "profile", "calculating"].indexOf(step);
+  const progressPercent = Math.min(100, ((stepIndex + 1) / 4) * 100);
 
   return (
     <div className="max-w-md mx-auto min-h-[75vh] flex flex-col fade-in px-4 pt-4 pb-8">
@@ -437,11 +360,10 @@ export default function RegisterPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            Step {stepIndex + 1} of 5
+            Step {stepIndex + 1} of 4
           </div>
           <div className="text-[10px] text-gray-400">
-            {step === "phone" && "Phone"}
-            {step === "otp" && "Verify OTP"}
+            {step === "phone" && "Google account and phone"}
             {step === "persona" && "Work Profile"}
             {step === "profile" && "Details"}
             {step === "calculating" && "AI Quote"}
@@ -470,17 +392,23 @@ export default function RegisterPage() {
 
             <div className="text-center mb-8">
               <h1 className="text-3xl font-extrabold tracking-tight mb-2">
-                <span className="text-slate-900">Get </span>
-                <span className="text-gradient-orange">Protected</span>
+                <span className="text-slate-900">Create </span>
+                <span className="text-gradient-orange">Profile</span>
               </h1>
               <p className="text-sm text-gray-600">
-                Enter your mobile number to get started
+                Sign in with Google, then add your contact number
               </p>
             </div>
 
+            <GoogleSignIn onSuccess={async (data) => {
+              if (data.registered) { await refreshSession(); safePush(router, "/dashboard"); return; }
+              setRegistrationProof(data.registrationProof || "");
+              if (data.name) update("name", data.name);
+            }} />
+            {registrationProof && <p className="text-sm text-emerald-700 my-3">Google account verified. Add your unverified contact phone below.</p>}
             <div>
               <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-2">
-                Mobile Number
+                Mobile Number (unverified)
               </label>
               <div className="relative flex items-stretch bg-white border border-slate-200 rounded-xl focus-within:border-orange-500 focus-within:ring-4 focus-within:ring-orange-500/10 transition-all overflow-hidden shadow-sm">
                 <div className="flex items-center px-4 bg-slate-50 border-r border-slate-200">
@@ -508,75 +436,14 @@ export default function RegisterPage() {
             </div>
 
             <button
-              onClick={handleSendOtp}
-              disabled={!isIndianPhoneValid}
+              onClick={() => { if (isIndianPhoneValid && registrationProof) setStep("persona"); }}
+              disabled={!isIndianPhoneValid || !registrationProof}
               className="btn btn-primary w-full text-lg font-bold py-4 rounded-xl mt-6 disabled:opacity-50"
             >
-              Send OTP →
+              Continue to work profile →
             </button>
 
-            <p className="text-xs text-center text-gray-500 mt-6">
-              By continuing, you agree to our{" "}
-              <span className="text-primary-500">Terms</span> and{" "}
-              <span className="text-primary-500 cursor-pointer">
-                Privacy Policy
-              </span>
-              .
-            </p>
-          </div>
-        )}
-
-        {/* step 2: otp verification */}
-        {step === "otp" && (
-          <div className="w-full">
-            <div className="text-center mb-8">
-              <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-2xl bg-primary-500/10 border border-primary-500/20">
-                🔐
-              </div>
-              <h1 className="text-2xl font-extrabold tracking-tight mb-2 text-slate-900">
-                Verify OTP
-              </h1>
-              <p className="text-sm text-gray-600">Sent to +91-{phone}</p>
-            </div>
-
-            <div className="flex justify-center gap-3 mb-4">
-              {otp.map((digit, i) => (
-                <input
-                  key={i}
-                  ref={(el) => {
-                    otpRefs.current[i] = el;
-                  }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleOtpChange(i, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                  className="w-12 h-14 text-center text-xl font-bold rounded-xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all"
-                />
-              ))}
-            </div>
-
-            {otpError && (
-              <div className="text-center text-sm text-red-500 font-medium mb-3">
-                {otpError}
-              </div>
-            )}
-
-            {otpVerifying && (
-              <div className="text-center text-xs text-primary-500 font-semibold mb-3">
-                Verifying OTP...
-              </div>
-            )}
-
-            <p className="text-center text-xs text-amber-700">Local test mode. No SMS was sent. Use your operator-configured code.</p>
-
-            <button
-              onClick={() => setStep("phone")}
-              className="btn btn-ghost w-full mt-6 text-sm"
-            >
-              ← Change Number
-            </button>
+            <p className="text-xs text-center text-gray-500 mt-6">Your phone is a contact field only. It is not verified and cannot be used to sign in. This project does not provide active insurance or payouts.</p>
           </div>
         )}
 
@@ -710,7 +577,7 @@ export default function RegisterPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setStep("otp")}
+                onClick={() => setStep("phone")}
                 className="px-5 py-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-1.5"
               >
                 ‹ Back

@@ -128,7 +128,7 @@ function mapQueueClaim(row: QueueClaimRow) {
     id: row.id,
     workerId: row.worker_id,
     workerName: row.worker_name,
-    workerPhone: row.worker_phone,
+    workerPhone: row.worker_phone || "",
     platform: row.platform,
     city: row.city,
     zone: row.zone || "Unknown",

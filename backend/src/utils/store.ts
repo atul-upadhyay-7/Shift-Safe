@@ -8,6 +8,8 @@ export interface WorkerProfile {
   id: string;
   name: string;
   phone: string;
+  phoneVerified?: boolean;
+  authProvider?: string;
   platform: string;
   city?: string;
   zone: string;
