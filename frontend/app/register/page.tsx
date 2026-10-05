@@ -1,11 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
-import { calculateWeeklyPremium } from "@/backend/engines/premium-engine";
 import PhoneVerification from "@/frontend/components/auth/PhoneVerification";
 import GoogleSignIn from "@/frontend/components/auth/GoogleSignIn";
-import { safePush } from "@/lib/client/navigation";
+import { safePush, safeReplace } from "@/lib/client/navigation";
 
 type Step = "phone" | "persona" | "profile" | "calculating";
 
@@ -180,38 +179,14 @@ const DELIVERY_PERSONAS = [
     bgColor: "#f9731615",
     borderColor: "#f9731640",
   },
-  {
-    id: "grocery_delivery",
-    emoji: "🛒",
-    title: "Grocery Delivery",
-    subtitle: "Zepto / Blinkit",
-    platforms: ["Zepto", "Blinkit"],
-    color: "#10b981",
-    bgColor: "#10b98115",
-    borderColor: "#10b98140",
-  },
-  {
-    id: "ecommerce",
-    emoji: "📦",
-    title: "E-commerce",
-    subtitle: "Amazon Flex",
-    platforms: ["Amazon Flex"],
-    color: "#3b82f6",
-    bgColor: "#3b82f615",
-    borderColor: "#3b82f640",
-  },
-];
 
-const EARNING_RANGES = [
-  { label: "₹2,000 – ₹4,000", value: "3000", tag: "Part-time" },
-  { label: "₹4,001 – ₹8,000", value: "6000", tag: "Regular" },
-  { label: "₹8,001 – ₹12,000", value: "10000", tag: "Full-time" },
-  { label: "₹12,001+", value: "14000", tag: "Power rider" },
 ];
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { refreshSession } = useAppState();
+  const { refreshSession, isLoggedIn, isBootstrapping } = useAppState();
+  const draftHydrated = useRef(false);
+  const [draftStatus, setDraftStatus] = useState("");
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [registrationProof, setRegistrationProof] = useState("");
@@ -226,18 +201,16 @@ export default function RegisterPage() {
   const [phoneError, setPhoneError] = useState("");
 
   const [selectedPersona, setSelectedPersona] = useState("");
-  const [selectedEarningRange, setSelectedEarningRange] = useState("");
 
   const [form, setForm] = useState({
     name: "",
     platform: "Zomato",
-    city: "Mumbai",
-    zone: "Andheri East",
+    city: "",
+    zone: "",
     customCity: "",
     customZone: "",
     avgWeeklyEarnings: "",
-    hoursPerDay: "",
-    daysWorkedThisWeek: "6",
+    daysWorkedThisWeek: "",
     totalActiveDeliveryDays: "",
     daysActiveInLast30: "",
     consentGps: false,
@@ -250,9 +223,6 @@ export default function RegisterPage() {
     wantInsurance: true,
   });
 
-  const [premiumResult, setPremiumResult] = useState<ReturnType<
-    typeof calculateWeeklyPremium
-  > | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -289,6 +259,41 @@ export default function RegisterPage() {
     } catch { /* An invalid local handoff cannot authorize server registration. */ }
   }, []);
 
+  useEffect(() => {
+    if (!isBootstrapping && isLoggedIn) safeReplace(router, "/journey");
+  }, [isBootstrapping, isLoggedIn, router]);
+
+  useEffect(() => {
+    if (!registrationProof || !emailVerified) return;
+    let cancelled = false;
+    draftHydrated.current = false;
+    fetch("/api/onboarding/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "read", registrationProof }) })
+      .then(async response => {
+        const data = await response.json();
+        if (cancelled) return;
+        if (!response.ok) throw new Error(data.error || "Could not restore draft");
+        if (data.draft) {
+          setForm(prev => ({ ...prev, ...data.draft.form }));
+          setStep(data.draft.step); setSelectedPersona("food_delivery");
+          setDraftStatus("Saved work profile restored.");
+        }
+        draftHydrated.current = true;
+      }).catch(error => { if (!cancelled) setDraftStatus(error.message); });
+    return () => { cancelled = true; };
+  }, [registrationProof, emailVerified]);
+
+  useEffect(() => {
+    if (!registrationProof || !draftHydrated.current || (step !== "persona" && step !== "profile")) return;
+    const timer = setTimeout(() => {
+      fetch("/api/onboarding/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save", registrationProof, draft: { form, step, selectedPersona } }) })
+        .then(async response => {
+          const data = await response.json();
+          setDraftStatus(response.ok ? "Work details saved until your email-link grant expires. Payout details are not saved in this draft." : data.error || "Draft could not be saved");
+        }).catch(() => setDraftStatus("Draft could not be saved. Keep this page open."));
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [form, step, selectedPersona, registrationProof]);
+
   const handlePersonaSelect = (personaId: string) => {
     setSelectedPersona(personaId);
     const persona = DELIVERY_PERSONAS.find((p) => p.id === personaId);
@@ -299,10 +304,6 @@ export default function RegisterPage() {
 
   const handlePersonaContinue = () => {
     if (!selectedPersona || !form.city) return;
-    // Apply selected earning range to form
-    if (selectedEarningRange) {
-      update("avgWeeklyEarnings", selectedEarningRange);
-    }
     setStep("profile");
   };
 
@@ -310,6 +311,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     setSubmitError("");
     if (!registrationProof) { setSubmitError("Sign in with Google before registration."); setIsSubmitting(false); return; }
+    if (!form.avgWeeklyEarnings || form.daysWorkedThisWeek === "") { setSubmitError("Enter your actual income and days worked this week."); setIsSubmitting(false); return; }
     if (form.daysActiveInLast30 === "") { setSubmitError("Enter your activity days in the last 30 days."); setIsSubmitting(false); return; }
     if (!form.totalActiveDeliveryDays || !Number.isInteger(Number(form.totalActiveDeliveryDays)) || Number(form.totalActiveDeliveryDays) < 0) { setSubmitError("Enter your actual lifetime active delivery days."); setIsSubmitting(false); return; }
     setStep("calculating");
@@ -318,22 +320,6 @@ export default function RegisterPage() {
       form.city === "Other" && form.customCity ? form.customCity : form.city;
     const finalZone =
       form.city === "Other" && form.customZone ? form.customZone : form.zone;
-    const daysWorked = parseInt(form.daysWorkedThisWeek) || 6;
-
-    const result = calculateWeeklyPremium(
-      finalZone,
-      parseFloat(form.avgWeeklyEarnings) || 4200,
-      form.platform,
-      0,
-      "clear",
-      finalCity,
-      daysWorked,
-      Number(form.totalActiveDeliveryDays),
-    );
-
-    // Pricing comes from the server; no client-only plan multiplier.
-    setPremiumResult(result);
-
     try {
       const response = await fetch("/api/register", {
         method: "POST",
@@ -345,9 +331,9 @@ export default function RegisterPage() {
           city: finalCity,
           zone: finalZone,
           shiftType: "full_day",
-          avgWeeklyIncome: parseFloat(form.avgWeeklyEarnings) || 4200,
+          avgWeeklyIncome: Number(form.avgWeeklyEarnings),
           vehicleType: "bike",
-          daysWorkedThisWeek: parseInt(form.daysWorkedThisWeek) || 6,
+          daysWorkedThisWeek: Number(form.daysWorkedThisWeek),
           totalActiveDeliveryDays: Number(form.totalActiveDeliveryDays),
           registrationProof,
           phoneProof,
@@ -371,7 +357,7 @@ export default function RegisterPage() {
 
       sessionStorage.removeItem("shiftsafe-email-onboarding");
       await refreshSession();
-      safePush(router, "/dashboard");
+      safePush(router, "/journey");
     } catch {
       setSubmitError("Unable to complete registration right now.");
       setStep("profile");
@@ -386,6 +372,7 @@ export default function RegisterPage() {
 
   return (
     <div className="max-w-md mx-auto min-h-[75vh] flex flex-col fade-in px-4 pt-4 pb-8">
+      {draftStatus && <p role="status" className="mb-4 text-xs text-gray-600">{draftStatus}</p>}
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
@@ -396,7 +383,7 @@ export default function RegisterPage() {
             {step === "phone" && "Google account and email"}
             {step === "persona" && "Work Profile"}
             {step === "profile" && "Details"}
-            {step === "calculating" && "AI Quote"}
+            {step === "calculating" && "Save account"}
           </div>
         </div>
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -431,7 +418,7 @@ export default function RegisterPage() {
             </div>
 
             <GoogleSignIn onSuccess={async (data) => {
-              if (data.registered) { await refreshSession(); safePush(router, "/dashboard"); return; }
+              if (data.registered) { await refreshSession(); safePush(router, "/journey"); return; }
               setRegistrationProof(data.registrationProof || "");
               setIdToken(data.idToken || "");
               setGoogleEmail(data.email || "");
@@ -584,6 +571,7 @@ export default function RegisterPage() {
                   value={form.city}
                   onChange={(e) => update("city", e.target.value)}
                 >
+                  <option value="">Select your actual city</option>
                   {CITIES.map((c) => (
                     <option key={c.name} value={c.name}>
                       {c.name} — {c.tierLabel}
@@ -600,36 +588,7 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              {/* Weekly Earnings Range */}
-              <div>
-                <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-2.5">
-                  Weekly Earnings Range
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {EARNING_RANGES.map((range) => (
-                    <button
-                      key={range.value}
-                      onClick={() => setSelectedEarningRange(range.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition-all ${
-                        selectedEarningRange === range.value
-                          ? "bg-primary-50 border-primary-500 shadow-sm"
-                          : "bg-white border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <div
-                        className={`text-sm font-bold ${selectedEarningRange === range.value ? "text-primary-600" : "text-slate-700"}`}
-                      >
-                        {range.label}
-                      </div>
-                      <div className="text-[10px] text-gray-500 mt-0.5">
-                        {range.tag}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <p className="text-xs text-gray-500">Activity is self-reported in this stage. Identity and platform verification are not configured; no KYC verification is claimed.</p>
+              <p className="text-xs text-gray-500">This build focuses on Zomato and Swiggy food delivery. Activity is self-reported in this stage. Identity and platform verification are not configured; no KYC verification is claimed.</p>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -658,7 +617,7 @@ export default function RegisterPage() {
                 Complete Profile
               </h1>
               <p className="text-sm text-gray-600">
-                Final details to calculate your premium
+                Enter your actual work details
               </p>
             </div>
 
@@ -690,9 +649,6 @@ export default function RegisterPage() {
                       ?.platforms || [
                       "Zomato",
                       "Swiggy",
-                      "Amazon Flex",
-                      "Blinkit",
-                      "Zepto",
                     ]
                   ).map((p) => (
                     <option key={p} value={p}>
@@ -790,7 +746,8 @@ export default function RegisterPage() {
                   value={form.daysWorkedThisWeek}
                   onChange={(e) => update("daysWorkedThisWeek", e.target.value)}
                 >
-                  {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                  <option value="">Select actual days</option>
+                  {[0, 1, 2, 3, 4, 5, 6, 7].map((d) => (
                     <option key={d} value={d}>
                       {d} day{d > 1 ? "s" : ""}
                     </option>
@@ -800,19 +757,6 @@ export default function RegisterPage() {
                   Coverage eligibility based on overall activity history, not
                   just this week
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold tracking-widest text-gray-500 uppercase mb-1.5">
-                  Hours Worked / Day
-                </label>
-                <input
-                  className="input-field"
-                  type="number"
-                  value={form.hoursPerDay}
-                  onChange={(e) => update("hoursPerDay", e.target.value)}
-                  placeholder="8"
-                />
               </div>
 
               <div>
@@ -917,7 +861,6 @@ export default function RegisterPage() {
                   isSubmitting ||
                   !form.name.trim() ||
                   !form.avgWeeklyEarnings ||
-                  !form.hoursPerDay ||
                   form.totalActiveDeliveryDays === "" ||
                   form.daysActiveInLast30 === "" ||
                   (form.payoutMethod === "bank" && (!form.bankAccount.trim() || !form.ifscCode.trim()))
@@ -927,7 +870,7 @@ export default function RegisterPage() {
                 {isSubmitting
                   ? "Submitting..."
                   : form.wantInsurance
-                    ? "Calculate My Premium →"
+                    ? "Save profile and review →"
                     : "Complete Registration →"}
               </button>
             </div>
@@ -947,82 +890,15 @@ export default function RegisterPage() {
               🧠
             </div>
             <h2 className="text-xl font-bold text-slate-900 mb-3">
-              {form.wantInsurance
-                ? "Calculating your risk profile..."
-                : "Setting up your account..."}
+              Saving your work profile...
             </h2>
             <p className="text-sm text-gray-600 mb-6">
-              Parametric Pricing Model v3.0
+              Your next step is a saved profile and quote review. No cover is activated.
             </p>
 
             <div className="w-12 h-12 mx-auto border-3 border-primary-500 border-t-transparent rounded-full animate-spin mb-6" />
 
-            {premiumResult && form.wantInsurance && (
-              <div className="glass-card p-5 text-left mt-4 fade-in">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
-                      Weekly Premium
-                    </div>
-                    <div className="text-2xl font-bold text-primary-500">
-                      ₹{premiumResult.weeklyPremium}
-                    </div>
-                    <div className="text-[10px] text-gray-400">
-                      {premiumResult.premiumTierName}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
-                      Max Payout (50%)
-                    </div>
-                    <div className="text-2xl font-bold text-slate-900">
-                      ₹{premiumResult.maxPayoutPerWeek?.toLocaleString()}
-                    </div>
-                    <div className="text-[10px] text-gray-400">
-                      50% cap applied
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Risk Score: {premiumResult.riskScore}/100 ·{" "}
-                  {premiumResult.riskLabel}
-                </div>
-                {premiumResult.isEligible === false && (
-                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <div className="text-xs font-semibold text-amber-700">
-                      ⚠️ Not yet eligible
-                    </div>
-                    <div className="text-[11px] text-amber-600 mt-0.5">
-                      {premiumResult.eligibilityReason}
-                    </div>
-                  </div>
-                )}
-                <div className="mt-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">
-                    Pricing Formula
-                  </div>
-                  <div className="text-[11px] font-mono text-slate-600">
-                    P({premiumResult.pricingBreakdown?.triggerProbability}) × ₹
-                    {premiumResult.pricingBreakdown?.avgIncomeLostPerDay}/day ×{" "}
-                    {premiumResult.pricingBreakdown?.daysExposed}d = ₹
-                    {premiumResult.pricingBreakdown?.rawPremium} → Fixed ₹
-                    {premiumResult.weeklyPremium}
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {premiumResult && !form.wantInsurance && (
-              <div className="glass-card p-5 text-left mt-4 fade-in">
-                <div className="flex items-center gap-2 text-sm text-amber-600 font-semibold">
-                  ⚠️ Insurance coverage opted out
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  No cover is active. Enrollment will require eligibility and payment verification.
-                </p>
-              </div>
-            )}
           </div>
         )}
       </div>

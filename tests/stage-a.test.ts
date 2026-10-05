@@ -62,6 +62,11 @@ test("Stage A trust boundaries and honest onboarding", async (t) => {
     const local = await otpRequest.POST(request("/api/auth/otp/request", "POST", { phone: base.phone }));
     assert.match((await local.json()).message, /No SMS was sent/);
   });
+  await t.test("food-delivery scope and actual activity fields", async () => {
+    assert.equal((await register.POST(request("/api/register", "POST", { ...base, platform: "Blinkit" }))).status, 400);
+    assert.equal((await register.POST(request("/api/register", "POST", { ...base, daysWorkedThisWeek: "" }))).status, 400);
+    assert.equal((await register.POST(request("/api/register", "POST", { ...base, daysActiveInLast30: "" }))).status, 400);
+  });
   await t.test("registration requires proof bound to the same phone", async () => {
     assert.equal((await register.POST(request("/api/register", "POST", base))).status, 401);
     const token = await proof(base.phone);

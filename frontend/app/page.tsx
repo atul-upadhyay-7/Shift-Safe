@@ -124,10 +124,10 @@ export default function SplashPage() {
         <div className="space-y-3 mb-8">
           {isLoggedIn ? (
             <button
-              onClick={() => safePush(router, "/dashboard")}
+              onClick={() => safePush(router, "/journey")}
               className="w-full py-4 rounded-xl text-lg font-bold bg-primary-500 text-white shadow-[0_8px_24px_rgba(249,115,22,0.4)] hover:bg-primary-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
             >
-              Go to Dashboard
+              Continue saved journey
               <span className="group-hover:translate-x-1 transition-transform">→</span>
             </button>
           ) : (

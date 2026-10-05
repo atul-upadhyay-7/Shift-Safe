@@ -194,9 +194,6 @@ export async function POST(req: NextRequest) {
     const ALLOWED_PLATFORMS = [
       "Zomato",
       "Swiggy",
-      "Amazon Flex",
-      "Blinkit",
-      "Zepto",
     ];
     if (!ALLOWED_PLATFORMS.includes(platform)) {
       return NextResponse.json(
@@ -225,6 +222,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (avgWeeklyIncome === "" || daysWorkedThisWeek === "" || totalActiveDeliveryDays === "" || daysActiveInLast30 === "") return NextResponse.json({ error: "Enter actual income and activity values" }, { status: 400 });
     const safeIncome = Number(avgWeeklyIncome);
     if (!Number.isFinite(safeIncome) || safeIncome < 500 || safeIncome > 50000) return NextResponse.json({ error: "Weekly income must be between 500 and 50000" }, { status: 400 });
     const safeDaysWorked = Number(daysWorkedThisWeek);
@@ -368,6 +366,8 @@ export async function POST(req: NextRequest) {
       isMultiApping: false,
       dpdpConsents,
     });
+
+    statements.push({ query: "INSERT INTO worker_journeys (worker_id, step, eligibility_json) VALUES (?, ?, ?)", params: [workerId, "profile", JSON.stringify({ eligible: underwriting.eligible, reason: underwriting.reason, warnings: underwriting.warnings, activityTier: underwriting.activityTier, provenance: "existing-unvalidated-product-rules", insuranceOptedOut })] });
 
     // All account, consent, policy and audit records commit together.
     await insertWorkerRecord(writes, {

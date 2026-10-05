@@ -442,6 +442,17 @@ export async function initDb() {
 
 async function initSchema(db: any) {
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS worker_journeys (
+      worker_id TEXT PRIMARY KEY,
+      step TEXT NOT NULL DEFAULT 'profile',
+      eligibility_json TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS onboarding_drafts (
+      proof_id TEXT PRIMARY KEY,
+      draft_json TEXT NOT NULL,
+      expires_at BIGINT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS phone_trial_usage (
       id TEXT PRIMARY KEY,
       sends INTEGER NOT NULL DEFAULT 0,

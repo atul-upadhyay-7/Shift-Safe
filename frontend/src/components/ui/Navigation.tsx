@@ -14,6 +14,7 @@ export function BottomNav() {
 
   const links = [
     { href: "/dashboard", icon: "📊", label: "Home" },
+    { href: "/journey", icon: "👤", label: "Profile" },
     { href: "/monitoring", icon: "🗺️", label: "Live" },
     { href: "/policies", icon: "🛡️", label: "Policy" },
     { href: "/claims", icon: "⚡", label: "Claims" },
@@ -226,6 +227,7 @@ export function TopBar() {
             {/* Dropdown */}
             {profileOpen && (
               <div className="absolute right-0 top-12 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden fade-in z-50">
+                <a href="/journey" className="block px-4 py-3 text-sm font-semibold text-primary-600 border-b">Saved profile and journey →</a>
                 {/* Header */}
                 <div
                   className="px-4 pt-4 pb-3 border-b border-slate-100"
@@ -267,11 +269,6 @@ export function TopBar() {
                       icon: "💰",
                       label: "Weekly Earnings",
                       value: `₹${worker?.avgWeeklyEarnings?.toLocaleString() || "—"}`,
-                    },
-                    {
-                      icon: "🕐",
-                      label: "Hours/Day",
-                      value: `${worker?.hoursPerDay || "—"} hrs`,
                     },
                     {
                       icon: "💳",
