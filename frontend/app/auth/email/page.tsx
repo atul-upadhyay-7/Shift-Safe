@@ -14,6 +14,8 @@ export default function EmailActionPage() {
     const bearer = new URLSearchParams(window.location.hash.slice(1)).get("nonce") || "";
     // Strip even malformed fragments immediately; do not put bearer in storage.
     window.history.replaceState(null, "", "/auth/email");
+    // One-time URL hydration after stripping the bearer immediately.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!/^[0-9a-f]{64}$/.test(bearer)) setError("This is not an onboarding email link. Request a new link.");
     else setNonce(bearer);
   }, []);

@@ -69,9 +69,10 @@ const PAYOUT_CHANNELS = [
 export default function PoliciesPage() {
   const router = useRouter();
   const { worker, policy, claims, isLoggedIn, isBootstrapping } = useAppState();
-  const [insuranceActive, setInsuranceActive] = useState(
-    policy?.status === "active",
-  );
+  const [policyOverride, setPolicyOverride] = useState<{ id: string; sourceStatus: string; active: boolean } | null>(null);
+  const insuranceActive = policyOverride?.id === policy?.id && policyOverride?.sourceStatus === policy?.status
+    ? policyOverride?.active === true
+    : policy?.status === "active";
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [policyActionLoading, setPolicyActionLoading] = useState(false);
 
@@ -79,11 +80,6 @@ export default function PoliciesPage() {
     if (!isBootstrapping && !isLoggedIn) safeReplace(router, "/");
   }, [isBootstrapping, isLoggedIn, router]);
 
-  useEffect(() => {
-    setInsuranceActive(
-      policy?.status === "active",
-    );
-  }, [policy?.status]);
 
   if (isBootstrapping) {
     return null;
@@ -150,7 +146,7 @@ export default function PoliciesPage() {
         throw new Error(String(data?.error || "Unable to cancel coverage"));
       }
 
-      setInsuranceActive(false);
+      setPolicyOverride({ id: policy.id, sourceStatus: policy.status, active: false });
       setShowCancelConfirm(false);
       triggerToast("Coverage cancelled successfully", "success");
     } catch (error) {
@@ -185,7 +181,7 @@ export default function PoliciesPage() {
         throw new Error(String(data?.error || "Unable to reactivate coverage"));
       }
 
-      setInsuranceActive(true);
+      setPolicyOverride({ id: policy.id, sourceStatus: policy.status, active: true });
       triggerToast("Coverage reactivated", "success");
     } catch (error) {
       triggerToast(
@@ -217,7 +213,7 @@ export default function PoliciesPage() {
       if (!res.ok || !data?.success) {
         throw new Error(String(data?.error || "Unable to renew policy"));
       }
-      setInsuranceActive(true);
+      setPolicyOverride({ id: policy.id, sourceStatus: policy.status, active: true });
       triggerToast("Policy renewed successfully!", "success");
     } catch (error) {
       triggerToast(

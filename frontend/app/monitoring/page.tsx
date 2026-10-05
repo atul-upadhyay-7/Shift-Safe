@@ -171,7 +171,7 @@ export default function MonitoringPage() {
     } finally {
       setWeatherLoading(false);
     }
-  }, [worker?.city]);
+  }, [worker]);
 
   const verifyGps = useCallback(async () => {
     if (
@@ -341,11 +341,12 @@ export default function MonitoringPage() {
         setGpsChecking(false);
       }
     }
-  }, [worker?.city, worker?.zone, fetchWeather]);
+  }, [worker, fetchWeather]);
 
   useEffect(() => {
     if (isBootstrapping || !isLoggedIn) return;
-    void verifyGps();
+    const timer = window.setTimeout(() => { void verifyGps(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [isBootstrapping, isLoggedIn, verifyGps]);
 
   // Auto-refresh weather every 5 minutes

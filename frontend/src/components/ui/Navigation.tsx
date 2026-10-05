@@ -1,7 +1,8 @@
 "use client";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
+import { safeReplace } from "@/lib/client/navigation";
 import { useTheme } from "@/frontend/components/providers/ThemeProvider";
 
 export function BottomNav() {
@@ -55,6 +56,7 @@ export function BottomNav() {
 }
 
 export function TopBar() {
+  const router = useRouter();
   const pathname = usePathname();
   const { worker, policy, signOut } = useAppState();
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -102,7 +104,7 @@ export function TopBar() {
     setProfileOpen(false);
     await signOut();
     if (typeof window !== "undefined") {
-      window.location.assign("/");
+      safeReplace(router, "/");
     }
   };
 

@@ -553,16 +553,22 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    void loadDashboard();
-    void loadClaims(claimFilter);
-    void loadMlHealth(true);
+    const timer = window.setTimeout(() => {
+      void loadDashboard();
+      void loadClaims(claimFilter);
+      void loadMlHealth(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [isAuthenticated, loadDashboard, loadClaims, loadMlHealth, claimFilter]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (tab === "workers" || tab === "bonuses") void loadWorkers();
-    if (tab === "service_requests") void loadServiceRequests(srFilter);
-    if (tab === "bonuses") void loadBonuses();
+    const timer = window.setTimeout(() => {
+      if (tab === "workers" || tab === "bonuses") void loadWorkers();
+      if (tab === "service_requests") void loadServiceRequests(srFilter);
+      if (tab === "bonuses") void loadBonuses();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [
     isAuthenticated,
     tab,

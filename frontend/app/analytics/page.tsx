@@ -237,6 +237,8 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (!worker) return;
+    // Hydrate editable preview inputs from the external authenticated session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSimInput((prev) => ({
       ...prev,
       city: worker.city || prev.city,
@@ -249,12 +251,11 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (tab !== "ai_lab") return;
-    if (!simResult && !simLoading) {
-      void runPremiumSimulation();
-    }
-    if (!mlHealth && !mlLoading) {
-      void runMlProbe();
-    }
+    const timer = window.setTimeout(() => {
+      if (!simResult && !simLoading) void runPremiumSimulation();
+      if (!mlHealth && !mlLoading) void runMlProbe();
+    }, 0);
+    return () => window.clearTimeout(timer);
     // Intentionally excludes function refs to avoid eager reruns.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, simResult, simLoading, mlHealth, mlLoading]);

@@ -175,11 +175,12 @@ export default function ServiceRequestsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [worker?.id]);
+  }, [worker]);
 
   useEffect(() => {
     if (isLoggedIn && worker?.id) {
-      void loadRequests();
+      const timer = window.setTimeout(() => { void loadRequests(); }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [isLoggedIn, worker?.id, loadRequests]);
 

@@ -259,16 +259,17 @@ export default function RegisterPage() {
   const isIndianPhoneValid = /^[6-9]\d{9}$/.test(phone);
 
   const update = (key: string, val: string | boolean) => {
-    setForm((prev) => ({ ...prev, [key]: val }));
+    setForm((prev) => {
+      if (key === "city") {
+        const selected = CITIES.find((city) => city.name === val) || CITIES[0];
+        return { ...prev, city: String(val), zone: selected.zones.includes(prev.zone) ? prev.zone : selected.zones[0] };
+      }
+      return { ...prev, [key]: val };
+    });
   };
 
   // Update zones when city changes
   const currentCity = CITIES.find((c) => c.name === form.city) || CITIES[0];
-  useEffect(() => {
-    if (!currentCity.zones.includes(form.zone)) {
-      update("zone", currentCity.zones[0]);
-    }
-  }, [form.city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const saved = sessionStorage.getItem("shiftsafe-email-onboarding");
@@ -276,6 +277,8 @@ export default function RegisterPage() {
     try {
       const data = JSON.parse(saved);
       if (!data.registrationProof || !data.email || !data.phone || data.expiresAt <= Date.now()) { sessionStorage.removeItem("shiftsafe-email-onboarding"); return; }
+      // Hydrate the external email handoff; server proof remains authoritative.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRegistrationProof(data.registrationProof);
       setGoogleEmail(data.email);
       setConfirmEmail(data.email);
