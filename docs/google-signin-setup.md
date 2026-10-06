@@ -17,7 +17,7 @@ This is not active insurance. Payment, activation, automatic claims and payout a
 4. Redeploy after saving. Public config is bundled at build time. Existing deployments do not receive changed variables.
 5. Verify /api/health returns database up; confirm tables were created with no demo rows. Use a real Google account in the production UI; create a profile, sign out/in, inspect its pending/null policy and explicitly unverified phone. Confirm another Google subject cannot retrieve it even if it enters the same contact phone/email. This live provider/database check has not yet been performed.
 
-Optional admin config is separate: `ADMIN_EMAIL`, SHA-256 hex `ADMIN_PASSWORD_HASH` and independent `ADMIN_SESSION_SECRET`. Cron auth uses a separate `CRON_SECRET`. Do not enable these unless needed. `OTP_MODE=local_test`, `OTP_DEMO_CODE` and demo seeding do not enable production SMS. Never add private secrets with NEXT_PUBLIC prefixes.
+Optional admin config is separate: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` (salted scrypt preferred; legacy SHA-256 supports compatible migration, see [admin migration](admin-auth-migration.md)) and independent `ADMIN_SESSION_SECRET`. Cron auth uses a separate `CRON_SECRET`. Do not enable these unless needed. `OTP_MODE=local_test`, `OTP_DEMO_CODE` and demo seeding do not enable production SMS. Never add private secrets with NEXT_PUBLIC prefixes.
 
 ## Schema and compatibility
 

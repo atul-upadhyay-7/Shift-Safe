@@ -205,3 +205,10 @@ Root/frontend/backend package manifests and lockfile; .nvmrc; CI/label/size/rele
 
 ### CI test portability fix - October 6
 - 4488f0b pushed at 19:32 IST; CI37 Build failed only because the new redesign-absence test read the parent commit via git show, unavailable in the shallow CI checkout. Same assertion rewritten without git history. 73/73, lint/type/build/security/whitespace pass. Separate exact-SHA push approval required.
+
+### Compatible admin security candidate - October 7
+- Original owner 00:08:27 quote-reply authorizes the two optional extras; security first, ticket history separately. Each push still needs its own exact-SHA approval. No reset, UI restyle, deployment or production setting/data edit in preparation.
+- Asynchronous salted scrypt (OWASP N32768/r8/p3), fixed-format costs, compatible first-correct-login durable migration. Matching stored verifier never falls back to SHA; config-bound first-wins UPSERT supports deliberate rotation. Session/worker behavior unchanged; legacy secret remains until separately verified secure config cleanup. This is staged, not a claim that legacy configuration exposure or weak passwords are solved.
+- DB-atomic login counters:8/IP and32/app per15min, expiry cleanup, HMAC IP keys, no submitted credentials stored in limiter;429 Retry-After, storage errors503/no cookie. Shared cap prevents rotated/spoofed IP bypass but can temporarily deny owner login during attacks. Production never falls back to memory/SQLite.
+-86/86 regression tests include migration races/config rotation/corruption/native-scrypt/unique salts/parallel limits/new-process persistence/expiry/shared cap/input bounds/storage failures. Strict lint/typecheck/build/security/whitespace pass. Exact SQL independently checked against isolated PostgreSQL engine; no live DB mutated. Runtime advisories0; existing dev-only lint exception expiresOct12.
+- Original-UI browser390/1280 acceptance passes with actual local login/migration, signout/reload/admin revisions, worker visibility,503/401 and support recovery. Local fixture pixels captured, no production auth claim. No new runtime dependency.

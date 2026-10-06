@@ -442,6 +442,18 @@ export async function initDb() {
 
 async function initSchema(db: any) {
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_credentials (
+      email TEXT PRIMARY KEY,
+      config_id TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      migrated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS admin_login_limits (
+      key TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL,
+      reset_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS admin_login_limits_expiry ON admin_login_limits(reset_at);
     CREATE TABLE IF NOT EXISTS sandbox_policies (
       id TEXT PRIMARY KEY, worker_id TEXT NOT NULL, quote_hash TEXT NOT NULL,
       quote_json TEXT NOT NULL, premium_simulated REAL NOT NULL, weekly_limit REAL NOT NULL,
