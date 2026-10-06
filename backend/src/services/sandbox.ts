@@ -1,5 +1,6 @@
 import {createHash} from "node:crypto";
 import {getDb} from "../models/db";
+import {databaseTimestampMs} from "../utils/database-time";
 import {quoteFingerprint,QUOTE_ASSUMPTIONS,validQuoteInputs} from "../engines/historical-quote";
 import {fetchEnvironment,resolveEnvironmentLocation} from "./environment";
 import {TRIGGER_RULES} from "../config/trigger-rules";
@@ -15,7 +16,7 @@ export async function activateSandbox(workerId:string,now=Date.now()){
  if(!q||q.status!=="estimated"||q.assumptions?.version!==QUOTE_ASSUMPTIONS.version||!q.inputs||!validQuoteInputs(q.inputs)||!Number.isFinite(q.weeklyPremium)||q.weeklyPremium<0||!Number.isFinite(q.coverageAmount)||q.coverageAmount<=0||!Number.isFinite(q.calculation?.hourlyIncome)||q.calculation.hourlyIncome<=0)throw new SandboxError("A current valid historical estimate is required");
  const fingerprint=quoteFingerprint({...q.inputs,city:w.city,zone:w.zone,platform:w.platform,income:Number(w.avg_weekly_income)});
  if(fingerprint!==quoteFingerprint(q.inputs)||fingerprint!==row.input_fingerprint)throw new SandboxError("Quote no longer matches your work profile. Recalculate.");
- const stamp=String(row.created_at).replace(" ","T");const quoteTime=Date.parse(/[Zz]|[+-]\d{2}:?\d{2}$/.test(stamp)?stamp:`${stamp}Z`);if(!Number.isFinite(quoteTime)||now-quoteTime>7*86400000||now<quoteTime)throw new SandboxError("Quote is old or has an invalid timestamp. Recalculate.");
+ const quoteTime=databaseTimestampMs(row.created_at);if(!Number.isFinite(quoteTime)||now-quoteTime>7*86400000||now<quoteTime)throw new SandboxError("Quote is old or has an invalid timestamp. Recalculate.");
  const existing=await db.prepare("SELECT * FROM sandbox_policies WHERE worker_id=? AND ends_at>? ORDER BY starts_at DESC LIMIT 1").get(workerId,now);if(existing){if(existing.quote_json===row.result_json)return normalizePolicy(existing);throw new SandboxError("A seven-day sandbox policy already exists. Review it before starting another quote.");}
  const quoteHash=hash(row.result_json),id=`sbp_${hash(workerId+quoteHash).slice(0,32)}`;
  // Exact snapshot guard and unique hash make concurrent/replayed confirmations one policy.
