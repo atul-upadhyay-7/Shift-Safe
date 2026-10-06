@@ -63,6 +63,19 @@ test("Google onboarding is subject-owned, not unverified-phone or email-owned", 
   const get = new NextRequest("http://localhost/api/auth/session", { headers: { cookie } });
   const projection = await (await session.GET(get)).json();
   assert.equal(projection.worker.phoneVerified, false); assert.equal(projection.worker.authProvider, "google"); assert.equal(projection.policy, null);
+  await t.test("session and journey use stored contact verification, never Google identity", async () => {
+    const journey = await import("../frontend/app/api/journey/route");
+    assert.equal((await (await journey.GET(get)).json()).phoneVerified, false);
+    await db.prepare("UPDATE worker_contacts SET phone_verified = 1 WHERE worker_id = ?").run(workerId);
+    assert.equal((await (await session.GET(get)).json()).worker.phoneVerified, true);
+    assert.equal((await (await journey.GET(get)).json()).phoneVerified, true);
+    await db.prepare("UPDATE worker_contacts SET phone_verified = 0 WHERE worker_id = ?").run(workerId);
+    assert.equal((await (await session.GET(get)).json()).worker.phoneVerified, false);
+    await db.prepare("DELETE FROM worker_contacts WHERE worker_id = ?").run(workerId);
+    assert.equal((await (await session.GET(get)).json()).worker.phoneVerified, false);
+    assert.equal((await (await journey.GET(get)).json()).phoneVerified, false);
+    await db.prepare("INSERT INTO worker_contacts (worker_id, phone, phone_verified) VALUES (?, ?, ?)").run(workerId, base.phone, 0);
+  });
   assert.equal((await authorizeWorker(get, workerId)).workerId, workerId);
   const second = await verifiedProof({ ...identity, subject: "google-owner-b" });
   assert.equal(second.registered, false);

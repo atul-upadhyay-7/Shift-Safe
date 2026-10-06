@@ -255,7 +255,7 @@ export async function GET(req: NextRequest) {
     .all(worker.id)) as ClaimRow[];
 
   const now = new Date();
-  const workerProfile = { ...mapWorkerToProfile(worker), phone: profilePhone, phoneVerified: false, authProvider: session.googleSubject ? "google" : "local_test" };
+  const workerProfile = { ...mapWorkerToProfile(worker), phone: profilePhone, phoneVerified: contact?.phone_verified === 1, authProvider: session.googleSubject ? "google" : "local_test" };
   const policyData = mapPolicy(worker, policy, now);
   if (policyData) {
     const payments = await db.prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM premium_payments WHERE worker_id = ? AND policy_id = ? AND status = 'paid'").get(worker.id, policy!.id);

@@ -247,7 +247,7 @@ export function TopBar() {
                         {worker?.name || "Worker"}
                       </div>
                       <div className="text-[11px] text-gray-500">
-                        +91-{worker?.phone || "-"} {worker?.phoneVerified === false ? "(unverified)" : "(local test)"}
+                        +91-{worker?.phone || "-"} {worker?.phoneVerified === true ? "(contact verified)" : "(unverified)"}
                       </div>
                     </div>
                   </div>
