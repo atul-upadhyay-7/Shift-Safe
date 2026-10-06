@@ -114,6 +114,7 @@ export default function MonitoringPage() {
   const [evidence, setEvidence] = useState<EvidenceState | null>(null);
   const evidenceInputRef = useRef<HTMLInputElement | null>(null);
   const gpsRequestRef = useRef(0);
+  const weatherRequestRef = useRef(0);
   const gpsCheckingRef = useRef(false);
   const [mapZoom, setMapZoom] = useState(14);
   const [gpsState, setGpsState] = useState<GpsState>({
@@ -135,6 +136,7 @@ export default function MonitoringPage() {
 
   // ── Fetch live weather & AQI ──
   const fetchWeather = useCallback(async (lat?: number, lon?: number) => {
+    const requestId = ++weatherRequestRef.current;
     setWeatherLoading(true);
     setLiveData(null); setWeatherError("");
     try {
@@ -147,14 +149,16 @@ export default function MonitoringPage() {
 
       const res = await fetch(`/api/weather?${params.toString()}`);
       const data = await res.json();
+      if (weatherRequestRef.current !== requestId) return;
       if (res.ok || data.status === "unavailable") {
         setLiveData(data);
         setLastRefresh(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
       } else throw new Error(data.error || "Environmental data unavailable");
     } catch (error) {
+      if (weatherRequestRef.current !== requestId) return;
       setLiveData(null); setWeatherError(error instanceof Error ? error.message : "Environmental data unavailable");
     } finally {
-      setWeatherLoading(false);
+      if (weatherRequestRef.current === requestId) setWeatherLoading(false);
     }
   }, [worker]);
 
@@ -209,6 +213,7 @@ export default function MonitoringPage() {
         ? window.setTimeout(() => {
             if (gpsRequestRef.current !== requestId) return;
             gpsRequestRef.current += 1;
+            gpsCheckingRef.current = false;
             setGpsState({
               status: "manual_review",
               message:
@@ -293,7 +298,7 @@ export default function MonitoringPage() {
         const geolocationError = error as GeolocationPositionError;
         const deniedMessage =
           geolocationError.code === geolocationError.PERMISSION_DENIED
-            ? "GPS permission denied. Enable location to strengthen fraud validation."
+            ? "GPS permission denied. Location permission is off; city-center weather remains an unverified preview."
             : geolocationError.code === geolocationError.POSITION_UNAVAILABLE
               ? "GPS position unavailable right now. Move to open sky and retry."
               : "GPS request timed out. Retry once network/location improves.";
@@ -310,7 +315,7 @@ export default function MonitoringPage() {
         setGpsState({
           status: "error",
           message:
-            "Unable to verify GPS right now. You can continue with screenshot evidence.",
+            "Unable to verify GPS right now. City-center weather remains an unverified preview.",
           lastCheckedAt: new Date().toISOString(),
         });
       }
@@ -335,6 +340,13 @@ export default function MonitoringPage() {
     const timer = window.setTimeout(() => { void verifyGps(); }, 0);
     return () => window.clearTimeout(timer);
   }, [isBootstrapping, isLoggedIn, verifyGps]);
+
+  // Weather preview must not wait for GPS permission, callbacks or watchdogs.
+  useEffect(() => {
+    if (isBootstrapping || !isLoggedIn) return;
+    const timer = window.setTimeout(() => { void fetchWeather(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isBootstrapping, isLoggedIn, fetchWeather]);
 
   // Auto-refresh weather every 5 minutes
   useEffect(() => {
@@ -404,9 +416,9 @@ export default function MonitoringPage() {
   return (
     <div className="space-y-4 max-w-120 mx-auto fade-in pb-8">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
             Environmental preview
             <span className="live-dot" />
           </h1>
