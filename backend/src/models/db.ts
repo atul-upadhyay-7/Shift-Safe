@@ -754,6 +754,20 @@ async function initSchema(db: any) {
       FOREIGN KEY (worker_id) REFERENCES workers(id)
     );
 
+    CREATE TABLE IF NOT EXISTS service_request_history (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL,
+      actor_email TEXT NOT NULL,
+      revision BIGINT NOT NULL,
+      old_status TEXT NOT NULL,
+      new_status TEXT NOT NULL,
+      old_notes TEXT,
+      new_notes TEXT,
+      changed_at TEXT NOT NULL,
+      UNIQUE(request_id, revision),
+      FOREIGN KEY (request_id) REFERENCES service_requests(id)
+    );
+    CREATE INDEX IF NOT EXISTS service_request_history_request ON service_request_history(request_id, revision);
     CREATE TABLE IF NOT EXISTS risk_bonuses (
       id TEXT PRIMARY KEY,
       worker_id TEXT NOT NULL,
@@ -819,6 +833,8 @@ async function ensureWorkerPayoutColumns(db: any) {
 
 async function ensureServiceRequestAiColumns(db: any) {
   const migrationStatements = [
+    "ALTER TABLE service_requests ADD COLUMN history_revision BIGINT NOT NULL DEFAULT 0",
+    "ALTER TABLE service_requests ADD COLUMN last_change_id TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE service_requests ADD COLUMN ai_metadata TEXT",
     "ALTER TABLE service_requests ADD COLUMN ai_model_version TEXT",
   ];

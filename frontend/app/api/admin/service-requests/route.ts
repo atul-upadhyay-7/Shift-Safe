@@ -1,6 +1,8 @@
 // GET /api/admin/service-requests — List all service requests for admin
 // PATCH /api/admin/service-requests — Update status / add admin notes
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { getAdminEmail } from "@/lib/server/env";
 import { getDb } from "@/backend/models/db";
 import {
   ADMIN_SESSION_COOKIE,
@@ -105,7 +107,7 @@ export async function PATCH(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   try {
-    const { requestId, status, adminNotes, expectedUpdatedAt } = body;
+    const { requestId, status, adminNotes, expectedUpdatedAt, expectedRevision } = body;
 
     const safeRequestId = String(requestId || "").trim();
     if (!safeRequestId) {
@@ -128,7 +130,7 @@ export async function PATCH(req: NextRequest) {
 
     const db = getDb();
     const existing = await db
-      .prepare("SELECT id, status, updated_at FROM service_requests WHERE id = ?")
+      .prepare("SELECT id, status, admin_notes, resolved_at, updated_at, last_change_id FROM service_requests WHERE id = ?")
       .get(safeRequestId);
     if (!existing) {
       return NextResponse.json(
@@ -139,20 +141,25 @@ export async function PATCH(req: NextRequest) {
 
     if (adminNotes !== undefined && (typeof adminNotes !== "string" || adminNotes.length > 1000)) return NextResponse.json({ error: "Notes must be text up to 1000 characters" }, { status: 400 });
     if (expectedUpdatedAt !== undefined && typeof expectedUpdatedAt !== "string") return NextResponse.json({ error: "Invalid revision" }, { status: 400 });
-    const safeNotes = adminNotes === undefined ? null : adminNotes.trim();
-    const resolvedAt =
-      safeStatus === "resolved" || safeStatus === "closed"
-        ? new Date().toISOString()
-        : null;
-
-    const update = await db
-      .prepare(
-        `UPDATE service_requests
-         SET status = ?, admin_notes = COALESCE(?, admin_notes), resolved_at = CASE WHEN ? IN ('resolved', 'closed') THEN COALESCE(resolved_at, ?) ELSE NULL END, updated_at = ?
-         WHERE id = ? AND updated_at = ?`,
-      )
-      .run(safeStatus, safeNotes, safeStatus, resolvedAt, new Date().toISOString(), safeRequestId, expectedUpdatedAt ?? existing.updated_at);
-    if (!update.changes) return NextResponse.json({ error: "This request changed. Reload before saving." }, { status: 409 });
+    if (expectedRevision !== undefined && typeof expectedRevision !== "string") return NextResponse.json({ error: "Invalid revision" }, { status: 400 });
+    if ((expectedUpdatedAt !== undefined && expectedUpdatedAt !== existing.updated_at) || (expectedRevision !== undefined && expectedRevision !== existing.last_change_id)) return NextResponse.json({ error: "This request changed. Reload before saving." }, { status: 409 });
+    const safeNotes = adminNotes === undefined ? existing.admin_notes : adminNotes.trim();
+    if (safeStatus === existing.status && (safeNotes || "") === (existing.admin_notes || "")) return NextResponse.json({ success: true, requestId: safeRequestId, status: safeStatus, unchanged: true });
+    const changeId = randomUUID(), changedAt = new Date().toISOString();
+    const resolvedAt = safeStatus === "resolved" || safeStatus === "closed" ? changedAt : null;
+    // UPDATE holds the row lock until this transaction commits. INSERT SELECT is
+    // conditional on our unique change token, so a stale update creates no event.
+    // A failed history write rolls back the ticket update as well.
+    await db.batch([
+      { query: `UPDATE service_requests SET status = ?, admin_notes = ?,
+          resolved_at = CASE WHEN ? IN ('resolved', 'closed') THEN COALESCE(resolved_at, ?) ELSE NULL END,
+          updated_at = ?, last_change_id = ?, history_revision = history_revision + 1 WHERE id = ? AND updated_at = ? AND last_change_id = ?`,
+        params: [safeStatus, safeNotes, safeStatus, resolvedAt, changedAt, changeId, safeRequestId, existing.updated_at, existing.last_change_id] },
+      { query: `INSERT INTO service_request_history (id, request_id, actor_email, revision, old_status, new_status, old_notes, new_notes, changed_at)
+          SELECT ?, id, ?, history_revision, ?, status, ?, admin_notes, ? FROM service_requests WHERE id = ? AND last_change_id = ?`,
+        params: [changeId, getAdminEmail(), existing.status, existing.admin_notes, changedAt, safeRequestId, changeId] },
+    ]);
+    if (!await db.prepare("SELECT id FROM service_request_history WHERE id = ?").get(changeId)) return NextResponse.json({ error: "This request changed. Reload before saving." }, { status: 409 });
 
     return NextResponse.json({
       success: true,
