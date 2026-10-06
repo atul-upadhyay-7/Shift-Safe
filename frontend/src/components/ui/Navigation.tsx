@@ -15,6 +15,7 @@ export function BottomNav() {
   const links = [
     { href: "/dashboard", icon: "📊", label: "Home" },
     { href: "/journey", icon: "👤", label: "Profile" },
+    { href: "/sandbox", icon: "🧪", label: "Sandbox" },
     { href: "/monitoring", icon: "🗺️", label: "Live" },
     { href: "/policies", icon: "🛡️", label: "Policy" },
     { href: "/claims", icon: "⚡", label: "Claims" },

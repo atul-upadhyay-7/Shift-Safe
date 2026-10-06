@@ -85,6 +85,7 @@ export default function JourneyPage() {
     </section>
     {error && <p role="alert" className="text-red-600 text-sm">{error}</p>}
     {data.step !== "complete" && step === data.step ? <button disabled={busy} onClick={advance} className="w-full rounded-xl bg-primary-500 py-3 font-bold text-white disabled:opacity-50">{busy ? "Saving..." : data.step === "review" ? "Finish review - no payment" : "Save and continue"}</button> : <button onClick={() => setView(null)} className="text-sm underline">{data.step === "complete" ? "Return to review" : "Resume current step"}</button>}
+    <Link href="/sandbox" className="block rounded-xl border border-slate-300 p-3 text-center text-sm">Open separate no-money sandbox</Link>
     {data.step === "complete" && <Link href="/dashboard" className="block rounded-xl bg-primary-500 py-3 text-center font-bold text-white">Open dashboard</Link>}
   </main>;
 }

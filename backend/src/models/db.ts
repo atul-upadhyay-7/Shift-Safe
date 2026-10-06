@@ -442,6 +442,30 @@ export async function initDb() {
 
 async function initSchema(db: any) {
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS sandbox_policies (
+      id TEXT PRIMARY KEY, worker_id TEXT NOT NULL, quote_hash TEXT NOT NULL,
+      quote_json TEXT NOT NULL, premium_simulated REAL NOT NULL, weekly_limit REAL NOT NULL,
+      starts_at BIGINT NOT NULL, ends_at BIGINT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'sandbox_active', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(worker_id,quote_hash)
+    );
+    CREATE TABLE IF NOT EXISTS sandbox_events (
+      id TEXT PRIMARY KEY, worker_id TEXT NOT NULL, policy_id TEXT NOT NULL,
+      source TEXT NOT NULL, peril TEXT NOT NULL, observed_at BIGINT NOT NULL,
+      evidence_json TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(policy_id,source,peril,observed_at)
+    );
+    CREATE TABLE IF NOT EXISTS sandbox_claims (
+      id TEXT PRIMARY KEY, worker_id TEXT NOT NULL, policy_id TEXT NOT NULL,
+      event_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL, review_json TEXT NOT NULL,
+      amount_simulated REAL NOT NULL DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS sandbox_receipts (
+      id TEXT PRIMARY KEY, worker_id TEXT NOT NULL, policy_id TEXT NOT NULL,
+      claim_id TEXT NOT NULL UNIQUE, amount_simulated REAL NOT NULL,
+      label TEXT NOT NULL DEFAULT 'SIMULATED - NO MONEY TRANSFERRED',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS quote_snapshots (
       worker_id TEXT PRIMARY KEY,
       input_fingerprint TEXT NOT NULL,

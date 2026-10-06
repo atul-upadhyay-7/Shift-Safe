@@ -97,7 +97,7 @@ Root/frontend/backend package manifests and lockfile; .nvmrc; CI/label/size/rele
 
 ### Stage 3 rollout - October 6, 00:28 IST
 - Original user00:24:00 quote-reply approved exact d7275a5 push/deploy. Remote main ls-remote/fetch confirmed d7275a50be1dd9c09d73f0b4cc11332b5672da68. Hosted CI#27 all jobs successful: https://github.com/atul-upadhyay-7/Shift-Safe/actions/runs/37359789145 .
-- Vercel Ready/Latest/Production/Current, Hobby: https://vercel.com/atul1/shift-safe-dt/2fVsiwCQPphw6Ciifh79Bt8D1zb7 . CI/deployment/home pixels inspected.
+- Vercel Ready/Latest/Production/Current, Hobby: https://vercel.com/atul1/shift-safe-dt/2fVsiwCQPphw6Ciifh79Bt8D1zb7 . CI/deployment/login pixels inspected.
 - Live Mumbai weather routeHTTP200 real modelled data: provider weather18:45Z/rain18:00Z/US-AQI18:00Z, fetched18:57Z. Values27.5°C, preceding-hour rain0mm, US AQI98. Unknown city/invalid latitude400, health200 Neon up. No real-worker authenticated GPS/monitoring replay; local fixtures remain separately labelled.
 - Temporary Codespace deleted All0. Existing zero-dollar Stop usage cap checked; no billing upgrade/card/payment/SMS/email/reset. Five new dependency PRs unchanged. Remaining project stages4-6 not completed.
 
@@ -111,3 +111,17 @@ Root/frontend/backend package manifests and lockfile; .nvmrc; CI/label/size/rele
 -45 tests pass; typecheck, strict lint, production build and security checks pass. Runtime npm advisories0, existing development-only braces exception remains untilOct12.
 - Real provider acceptance in isolated worker fixture:2025-09-30..2026-09-29, daily9-18 IST,3285/3285 valid hours,3 rain-threshold hours, no heat hours.₹2.10 comes from an illustrative₹4000 input and stated assumptions, not a real worker/price or learned loss rate. Mobile/desktop actual API, reload persistence and finish-review/no-payment passed; rendered screenshots inspected. No authenticated real worker replay.
 - Remaining: variable/overnight schedules, historical AQI and other perils, legal/insurer approval, loss calibration, globally durable rate limits, evidence ingestion, sandbox lifecycle and full analytics/E2E audit. No push/deploy before separate candidate approval.
+
+### Stage4 rollout
+- Original user02:53:27 "Ok" quote-replied the exact8f43878 push/deploy question, after an earlier ambiguous generic approval was paused. Only8f43878 pushed. Fresh remote SHA and fetch match.
+- CI28 all three jobs success: https://github.com/atul-upadhyay-7/Shift-Safe/actions/runs/37376127891 . Vercel Hobby Ready Latest Production Current: https://vercel.com/atul1/shift-safe-dt/48KsFERPFg3yDV4u6CK9R44NKpsH . CI/deployment/login pixels inspected.
+- Live health200 Neon up; anonymous premium401 (no old fixed defaults); quote401 same origin anonymous and403 wrong origin. Unauthenticated journey redirects to login. No authenticated real-worker quote replay or financial mutation.
+- Temporary2-core environment under fresh$0 budget Stop usage Yes deleted; All0 confirmed. No cards, paid upgrade or billing change. Health endpoint legacy ML "operational/passRate100" remains for Stage6 audit, not evidence of trained quote model.
+
+## Stage5 candidate: isolated no-money lifecycle
+- Added separate sandbox policies/events/claims/receipts; no live financial tables touched. Versioned server quote/profile/date/limit guards, one current policy, deterministic duplicate prevention and transaction locks.
+- Added model-event check with fresh source provenance, in-schedule/window rain/heat only. Precise work zone/activity/loss absent -> zero-amount rule review, no trained fraud score or automatic approval.
+- Added explicit synthetic missing-evidence/complete-fixture scenarios. Only complete synthetic fixture can settle. Receipt/policy shared-cap serialization, idempotent replay and transactional rollback. All receipts simulated, no external reference/money.
+- Authenticated /sandbox with clear labels, separate nav/journey link, saved reload; no recurring workflow or live financial enablement.
+-54 tests pass; typecheck/strict lint/build/security pass. Runtime advisories0; unchanged dev braces exceptionOct12. Isolated PostgreSQL SQL execution via Neon adapter passed8 lifecycle/overlap tests; hosted-Neon concurrency not replayed. Mobile/desktop actual ERA5 quote -> simulation -> review/receipt -> reload tested in fixture only; pixels inspected. No real worker/production ledger mutation.
+- Docs SANDBOX-LIFECYCLE.md records assumptions and limitations. No push/deploy before candidate approval.
