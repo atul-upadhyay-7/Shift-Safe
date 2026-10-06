@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/frontend/components/providers/AppProvider";
 import { triggerToast } from "@/frontend/components/ui/Notifications";
+import { databaseTimestampMs } from "@/backend/utils/database-time";
 import { safeReplace } from "@/lib/client/navigation";
 
 const CATEGORIES = [
@@ -119,7 +120,9 @@ function getCategoryLabel(category: string): string {
 }
 
 function getRelativeTime(timestamp: string): string {
-  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const diffMs = Date.now() - databaseTimestampMs(timestamp);
+  if (!Number.isFinite(diffMs)) return "Time unavailable";
+  if (diffMs < 0) return "Date unavailable";
   const minutes = Math.floor(diffMs / (60 * 1000));
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes}m ago`;
@@ -155,34 +158,41 @@ export default function ServiceRequestsPage() {
     if (!isBootstrapping && !isLoggedIn) safeReplace(router, "/");
   }, [isBootstrapping, isLoggedIn, router]);
 
+  const requestVersion = useRef(0);
   const loadRequests = useCallback(async () => {
     if (!worker?.id) return;
+    const version = ++requestVersion.current;
     setIsLoading(true);
+    setRequests([]);
+    setSummary({ total: 0, open: 0, resolved: 0, aiClassified: 0 });
     setFormError("");
     try {
       const res = await fetch(
         `/api/service-requests?workerId=${encodeURIComponent(worker.id)}`,
         { cache: "no-store" },
       );
+      if (version !== requestVersion.current) return;
       if (!res.ok) throw new Error("Support records could not load. Retry; no sample records are substituted.");
       if (res.ok) {
         const data = await res.json();
+        if (version !== requestVersion.current) return;
         setRequests(data.requests || []);
         setSummary(
           data.summary || { total: 0, open: 0, resolved: 0, aiClassified: 0 },
         );
       }
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Support load failed");
+      if (version === requestVersion.current) setFormError(e instanceof Error ? e.message : "Support load failed");
     } finally {
-      setIsLoading(false);
+      if (version === requestVersion.current) setIsLoading(false);
     }
   }, [worker]);
 
   useEffect(() => {
     if (isLoggedIn && worker?.id) {
+      const counter = requestVersion;
       const timer = window.setTimeout(() => { void loadRequests(); }, 0);
-      return () => window.clearTimeout(timer);
+      return () => { window.clearTimeout(timer); ++counter.current; };
     }
   }, [isLoggedIn, worker?.id, loadRequests]);
 
@@ -277,7 +287,7 @@ export default function ServiceRequestsPage() {
 
       {formError && <p role="alert" className="text-red-700">{formError}</p>}
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {!isLoading && !formError && <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="glass-card p-4 text-center">
           <div className="text-xl font-bold text-slate-900">
             {summary.total}
@@ -301,7 +311,7 @@ export default function ServiceRequestsPage() {
           </div>
         </div>
 
-      </div>
+      </div>}
 
       {/* NEW REQUEST FORM */}
       {view === "new" && (
@@ -444,7 +454,7 @@ export default function ServiceRequestsPage() {
                 </div>
               ))}
             </div>
-          ) : requests.length === 0 ? (
+          ) : formError ? null : requests.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <div className="text-4xl mb-3">📋</div>
               <div className="text-sm font-semibold text-slate-700 mb-1">

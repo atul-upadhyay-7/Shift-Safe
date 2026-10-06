@@ -12,7 +12,7 @@ import {
 } from "@/frontend/components/ui/Notifications";
 
 export const metadata: Metadata = {
-  title: "ShiftSafe DT - Food-delivery income-protection prototype",
+  title: "ShiftSafe - Food-delivery income-protection prototype",
   description:
     "Personal no-money prototype with modelled weather, explained historical quotes and sandbox receipts. No active insurance or payouts.",
 

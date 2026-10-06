@@ -62,8 +62,7 @@ export default function SplashPage() {
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight mb-3 text-center">
-            Shift<span className="text-primary-500">Safe</span>{" "}
-            <span className="text-slate-400 font-medium">DT</span>
+            Shift<span className="text-primary-500">Safe</span>
           </h1>
 
           <p className="text-base text-slate-300 text-center max-w-xs leading-relaxed mb-4">
@@ -94,7 +93,7 @@ export default function SplashPage() {
         {/* Feature Showcase (auto-rotating) */}
         <div className="mb-8">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">
-            ✨ Why ShiftSafe DT
+            ✨ Why ShiftSafe
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             {FEATURES.map((f, i) => (
@@ -209,7 +208,7 @@ export default function SplashPage() {
         {/* Footer */}
         <div className="text-center pb-4">
           <div className="text-[10px] text-slate-500">
-            Built for Guidewire DEVTrails 2026 · ShiftSafe DT
+            Built for Guidewire DEVTrails 2026 · ShiftSafe
           </div>
         </div>
       </div>

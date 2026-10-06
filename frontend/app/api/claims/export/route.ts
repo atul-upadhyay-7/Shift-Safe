@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
   });
 
   const csvContent = [
-    `# ShiftSafe-DT — Claim History Export (Server)`,
+    `# ShiftSafe — Claim History Export (Server)`,
     `# Worker: ${worker?.name || 'Unknown'} (${worker?.platform || '—'}, ${worker?.city || '—'})`,
     `# Generated: ${new Date().toISOString()}`,
     `# Total Claims: ${rows.length}`,

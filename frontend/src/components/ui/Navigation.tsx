@@ -128,7 +128,7 @@ export function TopBar() {
             🛡️
           </div>
           <span className="text-xl font-extrabold text-slate-800 tracking-tight">
-            ShiftSafe<span className="text-primary-500 font-medium">DT</span>
+            ShiftSafe
           </span>
         </a>
 

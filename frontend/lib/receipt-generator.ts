@@ -1,7 +1,7 @@
 /*
  * Receipt Generator — Client-side PDF receipt for payout claims.
  *
- * Generates a branded ShiftSafe-DT payout receipt as a downloadable PDF
+ * Generates a branded ShiftSafe payout receipt as a downloadable PDF
  * using the Canvas API and PDF blob construction (zero external dependencies).
  *
  * Each receipt contains: claim ID, trigger details, payout amount,
@@ -49,7 +49,7 @@ export function downloadReceipt({ claim, worker, policy }: ReceiptData): void {
   // ─── Header ───
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 22px Inter, system-ui, sans-serif';
-  ctx.fillText('🛡️ ShiftSafe-DT', 24, 44);
+  ctx.fillText('🛡️ ShiftSafe', 24, 44);
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '11px Inter, system-ui, sans-serif';
@@ -172,7 +172,7 @@ export function downloadReceipt({ claim, worker, policy }: ReceiptData): void {
 
   ctx.fillStyle = '#475569';
   ctx.font = '10px Inter, system-ui, sans-serif';
-  ctx.fillText('This is a system-generated payout receipt from ShiftSafe-DT.', 24, h - 50);
+  ctx.fillText('This is a system-generated payout receipt from ShiftSafe.', 24, h - 50);
   ctx.fillText('Parametric insurance — zero-touch settlement for gig workers.', 24, h - 36);
 
   ctx.fillStyle = '#334155';
@@ -236,7 +236,7 @@ export function downloadClaimsCSV(claims: ExportClaim[], workerName?: string): v
   ]);
 
   const csvContent = [
-    `# ShiftSafe-DT Claim History Export`,
+    `# ShiftSafe Claim History Export`,
     `# Worker: ${workerName || 'Delivery Partner'}`,
     `# Generated: ${new Date().toISOString()}`,
     `# Total Claims: ${claims.length}`,
