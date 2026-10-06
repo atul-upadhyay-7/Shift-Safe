@@ -28,6 +28,7 @@ function shouldUseSecureCookie(req: NextRequest): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   const ip = getClientIp(req);
   const rate = consumeRateLimit(`admin_login:${ip}`, 8, 15 * 60 * 1000);
   if (!rate.allowed) {
@@ -106,6 +107,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   const res = NextResponse.json({ success: true });
   const secureCookie = shouldUseSecureCookie(req);
   res.cookies.set(ADMIN_SESSION_COOKIE, "", {

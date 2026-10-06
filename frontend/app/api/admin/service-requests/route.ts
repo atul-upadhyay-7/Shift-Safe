@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
   }
 
   const statusFilter = req.nextUrl.searchParams.get("status") || "all";
+  if (!["all", "open", "in_progress", "resolved", "closed"].includes(statusFilter)) return NextResponse.json({ error: "Invalid status filter" }, { status: 400 });
   const db = getDb();
 
   const whereClause = statusFilter === "all" ? "" : "WHERE sr.status = ?";
@@ -90,7 +91,8 @@ export async function GET(req: NextRequest) {
 
   summary.aiClassified = requests.filter((row) => row.ai !== null).length;
 
-  return NextResponse.json({ requests, summary });
+  const matchedTotal = statusFilter === "all" ? summary.total : Number(summary[statusFilter as "open" | "in_progress" | "resolved" | "closed"]);
+  return NextResponse.json({ requests, summary, matchedTotal, limit: 100 }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -98,9 +100,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
+  let body;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   try {
-    const body = await req.json();
-    const { requestId, status, adminNotes } = body;
+    const { requestId, status, adminNotes, expectedUpdatedAt } = body;
 
     const safeRequestId = String(requestId || "").trim();
     if (!safeRequestId) {
@@ -123,7 +128,7 @@ export async function PATCH(req: NextRequest) {
 
     const db = getDb();
     const existing = await db
-      .prepare("SELECT id FROM service_requests WHERE id = ?")
+      .prepare("SELECT id, status, updated_at FROM service_requests WHERE id = ?")
       .get(safeRequestId);
     if (!existing) {
       return NextResponse.json(
@@ -132,21 +137,22 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const safeNotes = adminNotes
-      ? String(adminNotes).trim().slice(0, 1000)
-      : null;
+    if (adminNotes !== undefined && (typeof adminNotes !== "string" || adminNotes.length > 1000)) return NextResponse.json({ error: "Notes must be text up to 1000 characters" }, { status: 400 });
+    if (expectedUpdatedAt !== undefined && typeof expectedUpdatedAt !== "string") return NextResponse.json({ error: "Invalid revision" }, { status: 400 });
+    const safeNotes = adminNotes === undefined ? null : adminNotes.trim();
     const resolvedAt =
       safeStatus === "resolved" || safeStatus === "closed"
         ? new Date().toISOString()
         : null;
 
-    await db
+    const update = await db
       .prepare(
         `UPDATE service_requests
-         SET status = ?, admin_notes = COALESCE(?, admin_notes), resolved_at = COALESCE(?, resolved_at), updated_at = datetime('now')
-         WHERE id = ?`,
+         SET status = ?, admin_notes = COALESCE(?, admin_notes), resolved_at = CASE WHEN ? IN ('resolved', 'closed') THEN COALESCE(resolved_at, ?) ELSE NULL END, updated_at = ?
+         WHERE id = ? AND updated_at = ?`,
       )
-      .run(safeStatus, safeNotes, resolvedAt, safeRequestId);
+      .run(safeStatus, safeNotes, safeStatus, resolvedAt, new Date().toISOString(), safeRequestId, expectedUpdatedAt ?? existing.updated_at);
+    if (!update.changes) return NextResponse.json({ error: "This request changed. Reload before saving." }, { status: 409 });
 
     return NextResponse.json({
       success: true,
@@ -156,8 +162,8 @@ export async function PATCH(req: NextRequest) {
     });
   } catch {
     return NextResponse.json(
-      { error: "Invalid request body" },
-      { status: 400 },
+      { error: "Could not update request. Reload to check its current state." },
+      { status: 500 },
     );
   }
 }
