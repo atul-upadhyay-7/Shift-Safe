@@ -125,3 +125,8 @@ Root/frontend/backend package manifests and lockfile; .nvmrc; CI/label/size/rele
 - Authenticated /sandbox with clear labels, separate nav/journey link, saved reload; no recurring workflow or live financial enablement.
 -54 tests pass; typecheck/strict lint/build/security pass. Runtime advisories0; unchanged dev braces exceptionOct12. Isolated PostgreSQL SQL execution via Neon adapter passed8 lifecycle/overlap tests; hosted-Neon concurrency not replayed. Mobile/desktop actual ERA5 quote -> simulation -> review/receipt -> reload tested in fixture only; pixels inspected. No real worker/production ledger mutation.
 - Docs SANDBOX-LIFECYCLE.md records assumptions and limitations. No push/deploy before candidate approval.
+
+### Stage5 rollout and corrective candidate
+- e9fe7ff approved by original06:54:47 Yes quote-reply to exact Stage5 push question; exact remote SHA confirmed. Vercel Ready Current Hobby, live auth/origin gates401/403, health Neon up. Temporary environment deleted All0.
+- Hosted CI29 failed ESLint react-hooks/purity on Date.now() in render added in the final expiry-label edit. Earlier lint passed but final redirected lint failure was not checked before candidate report. This was an execution/check-gating error, not a hosting discrepancy. Corrective candidate uses server snapshot asOf timestamp and labels expiry state as of last refresh; no guard disabled.
+- Corrective lint/typecheck54tests/build and actual provider mobile/desktop lifecycle all pass with shell stop-on-error. Requires separate push approval. CI29 https://github.com/atul-upadhyay-7/Shift-Safe/actions/runs/37399263815 ; deployment https://vercel.com/atul1/shift-safe-dt/CG21yMX5sr8rDSN1xwzb6EDCukxd . Stage5 not closed until hosted corrective CI success.
