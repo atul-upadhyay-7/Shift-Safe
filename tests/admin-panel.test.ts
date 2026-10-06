@@ -39,3 +39,11 @@ test("administrator access and support revision lifecycle",async(t)=>{
  const s=await session.GET(new NextRequest("http://localhost/api/admin/session",{headers:{cookie}}));assert.equal((await s.json()).authenticated,true);assert.equal(s.headers.get("cache-control"),"no-store");
  });
 });
+
+test("admin entry is separate from worker navigation", async () => {
+ const {readFileSync}=await import("node:fs");
+ const nav=readFileSync("frontend/src/components/ui/Navigation.tsx","utf8"),home=readFileSync("frontend/app/page.tsx","utf8");
+ assert.match(nav,/!isBootstrapping && !isLoggedIn &&/);
+ assert.match(nav,/pathname === "\/admin"/);
+ assert.match(home,/!isLoggedIn && \(/);
+});

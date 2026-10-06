@@ -8,7 +8,7 @@ import { useTheme } from "@/frontend/components/providers/ThemeProvider";
 export function BottomNav() {
   const pathname = usePathname();
 
-  if (pathname === "/" || pathname === "/register" || pathname === "/login") {
+  if (pathname === "/" || pathname === "/register" || pathname === "/login" || pathname === "/admin") {
     return null;
   }
 
@@ -56,7 +56,7 @@ export function BottomNav() {
 export function TopBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { worker, policy, signOut } = useAppState();
+  const { worker, policy, signOut, isLoggedIn, isBootstrapping } = useAppState();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -85,7 +85,7 @@ export function TopBar() {
   }, [profileOpen, themeOpen]);
 
   // hide on splash / register
-  if (pathname === "/" || pathname === "/register" || pathname === "/login") {
+  if (pathname === "/" || pathname === "/register" || pathname === "/login" || pathname === "/admin") {
     return null;
   }
 
@@ -197,6 +197,7 @@ export function TopBar() {
             )}
           </div>
 
+          {!isBootstrapping && !isLoggedIn && (
           <a
             href="/admin"
             className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-sm border border-slate-200 transition-all hover:scale-105 active:scale-95"
@@ -204,6 +205,7 @@ export function TopBar() {
           >
             ⚙️
           </a>
+          )}
 
           {/* Profile Avatar */}
           <div className="relative" ref={dropdownRef}>

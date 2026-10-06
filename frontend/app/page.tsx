@@ -147,6 +147,7 @@ export default function SplashPage() {
               </button>
             </>
           )}
+          {!isLoggedIn && (
           <button
             onClick={() => safePush(router, "/admin")}
             className="w-full py-3 rounded-xl text-sm font-bold text-slate-400 border border-slate-700/60 bg-slate-800/40 hover:bg-slate-800 hover:text-white hover:border-purple-500/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
@@ -157,6 +158,7 @@ export default function SplashPage() {
             Project admin login
             <span className="text-xs text-slate-500 group-hover:text-purple-400 transition-colors">→</span>
           </button>
+          )}
         </div>
 
         {/* How it works mini-timeline */}
