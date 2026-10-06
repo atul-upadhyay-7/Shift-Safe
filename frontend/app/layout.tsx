@@ -12,9 +12,9 @@ import {
 } from "@/frontend/components/ui/Notifications";
 
 export const metadata: Metadata = {
-  title: "ShiftSafe DT — AI Income Protection for Delivery Partners",
+  title: "ShiftSafe DT - Food-delivery income-protection prototype",
   description:
-    "Parametric micro-insurance for India's gig economy workers. Real-time weather triggers, automatic payouts, zero paperwork.",
+    "Personal no-money prototype with modelled weather, explained historical quotes and sandbox receipts. No active insurance or payouts.",
 
   icons: {
     icon: [
@@ -121,7 +121,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#f97316" />
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta

@@ -7,15 +7,7 @@ import {
   verifyAdminSessionToken,
 } from "@/lib/server/admin-auth";
 
-interface ServiceRequestAiMetadata {
-  urgencyScore: number;
-  suggestedPriority: "low" | "medium" | "high" | "urgent";
-  sentimentLabel: "positive" | "neutral" | "negative" | "angry";
-  categoryConfidence: number;
-  autoAction: string | null;
-  reasoning: string;
-  generatedAt: string;
-}
+
 
 interface ServiceRequestRow {
   id: string;
@@ -31,42 +23,6 @@ interface ServiceRequestRow {
   ai_model_version: string | null;
 }
 
-function parseAiMetadata(raw: string | null): ServiceRequestAiMetadata | null {
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
-    }
-    const data = parsed as Partial<ServiceRequestAiMetadata>;
-    if (typeof data.urgencyScore !== "number") return null;
-    if (typeof data.suggestedPriority !== "string") return null;
-    if (typeof data.sentimentLabel !== "string") return null;
-    if (typeof data.categoryConfidence !== "number") return null;
-    if (typeof data.reasoning !== "string") return null;
-
-    return {
-      urgencyScore: data.urgencyScore,
-      suggestedPriority:
-        data.suggestedPriority as ServiceRequestAiMetadata["suggestedPriority"],
-      sentimentLabel:
-        data.sentimentLabel as ServiceRequestAiMetadata["sentimentLabel"],
-      categoryConfidence: data.categoryConfidence,
-      autoAction:
-        typeof data.autoAction === "string" || data.autoAction === null
-          ? data.autoAction
-          : null,
-      reasoning: data.reasoning,
-      generatedAt:
-        typeof data.generatedAt === "string"
-          ? data.generatedAt
-          : new Date().toISOString(),
-    };
-  } catch {
-    return null;
-  }
-}
 
 function isAdminAuthenticated(req: NextRequest): boolean {
   const token = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
@@ -100,7 +56,9 @@ export async function GET(req: NextRequest) {
 
   const requests = rows.map((row) => ({
     ...row,
-    ai: parseAiMetadata(row.ai_metadata),
+    ai_metadata: null,
+    ai_model_version: null,
+    ai: null,
   }));
 
   const summaryRows = (await db

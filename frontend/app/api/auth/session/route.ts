@@ -79,13 +79,6 @@ function getFraudColor(score: number): string {
   return "#ff3b5c";
 }
 
-function getRiskLabel(score: number): string {
-  if (score <= 25) return "Low";
-  if (score <= 50) return "Moderate";
-  if (score <= 75) return "High";
-  return "Critical";
-}
-
 function getRelativeTime(timestamp: string): string {
   const diffMs = Date.now() - new Date(timestamp).getTime();
   const minutes = Math.floor(diffMs / (60 * 1000));
@@ -97,17 +90,6 @@ function getRelativeTime(timestamp: string): string {
 
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
-}
-
-function getContributionByTier(tier: string): PolicyData["contributions"] {
-  const normalized = String(tier || "").toLowerCase();
-  if (normalized === "premium") {
-    return { weather: 32, zone: 26, platform: 22, claims: 20 };
-  }
-  if (normalized === "low") {
-    return { weather: 20, zone: 18, platform: 35, claims: 27 };
-  }
-  return { weather: 28, zone: 24, platform: 24, claims: 24 };
 }
 
 function parseFraudInfo(
@@ -164,7 +146,7 @@ function mapPolicy(
   if (!policy) return null;
   const weeklyPremium = Number(policy?.weekly_premium || 0);
   const coverageAmount = Number(policy?.max_coverage_per_week || 0);
-  const normalizedRisk = Number(worker.risk_score || 0.35);
+  const normalizedRisk = Number(worker.risk_score || 0);
   const riskScore =
     normalizedRisk <= 1 ? Math.round(normalizedRisk * 100) : normalizedRisk;
 
@@ -188,12 +170,12 @@ function mapPolicy(
     weeklyPremium,
     coverageAmount,
     riskScore,
-    riskLabel: getRiskLabel(riskScore),
+    riskLabel: "Legacy stored score, unvalidated",
     status: normalizedStatus,
     startDate,
     nextPaymentDue: nextPaymentDate.toISOString().split("T")[0],
     totalPremiumPaid: 0,
-    contributions: getContributionByTier(policy?.premium_tier || "standard"),
+    contributions: {weather:0,zone:0,platform:0,claims:0},
   };
 }
 

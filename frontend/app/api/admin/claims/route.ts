@@ -106,18 +106,15 @@ function normalizeStatusFilter(raw: string | null): ClaimStatus {
 
 function normalizeQueueStatus(status: string): "review" | "paid" | "blocked" {
   const normalized = String(status || "").toLowerCase();
-  if (normalized === "paid" || normalized === "auto_approved") return "paid";
+  if (normalized === "paid") return "paid";
   if (normalized === "blocked") return "blocked";
   return "review";
 }
 
 function mapQueueClaim(row: QueueClaimRow) {
   const evidence = parseEvidenceData(row.evidence_data);
-  const fraudScore = Number(evidence.fraudScore || 0);
-  const fraudLabel = String(
-    evidence.fraudLabel ||
-      (fraudScore > 0 ? `${fraudScore}/100` : "Not scored"),
-  );
+  const fraudScore = null;
+  const fraudLabel = "No validated fraud assessment; legacy evidence preserved";
   const reviewPriority =
     String(evidence.reviewPriority || "normal").toLowerCase() === "high"
       ? "high"
@@ -163,7 +160,7 @@ export async function GET(req: NextRequest) {
   let whereClause = "";
   const params: string[] = [];
   if (statusFilter === "paid") {
-    whereClause = "WHERE c.status IN ('paid', 'auto_approved')";
+    whereClause = "WHERE c.status = 'paid'";
   } else if (statusFilter !== "all") {
     whereClause = "WHERE c.status = ?";
     params.push(statusFilter);

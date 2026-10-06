@@ -158,11 +158,13 @@ export default function ServiceRequestsPage() {
   const loadRequests = useCallback(async () => {
     if (!worker?.id) return;
     setIsLoading(true);
+    setFormError("");
     try {
       const res = await fetch(
         `/api/service-requests?workerId=${encodeURIComponent(worker.id)}`,
         { cache: "no-store" },
       );
+      if (!res.ok) throw new Error("Support records could not load. Retry; no sample records are substituted.");
       if (res.ok) {
         const data = await res.json();
         setRequests(data.requests || []);
@@ -170,8 +172,8 @@ export default function ServiceRequestsPage() {
           data.summary || { total: 0, open: 0, resolved: 0, aiClassified: 0 },
         );
       }
-    } catch {
-      // Silently handle — user can retry.
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Support load failed");
     } finally {
       setIsLoading(false);
     }
@@ -226,11 +228,8 @@ export default function ServiceRequestsPage() {
         return;
       }
 
-      const aiMessage = data?.aiClassification
-        ? ` AI triage set priority to ${String(data.priority || priority).toUpperCase()}.`
-        : "";
       triggerToast(
-        `Service request submitted successfully! ✓${aiMessage}`,
+        "Service request submitted. Status: open.",
         "success",
       );
 
@@ -276,8 +275,9 @@ export default function ServiceRequestsPage() {
         </button>
       </div>
 
+      {formError && <p role="alert" className="text-red-700">{formError}</p>}
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="glass-card p-4 text-center">
           <div className="text-xl font-bold text-slate-900">
             {summary.total}
@@ -300,14 +300,7 @@ export default function ServiceRequestsPage() {
             Resolved
           </div>
         </div>
-        <div className="glass-card p-4 text-center">
-          <div className="text-xl font-bold text-indigo-500">
-            {summary.aiClassified}
-          </div>
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mt-1">
-            AI Triaged
-          </div>
-        </div>
+
       </div>
 
       {/* NEW REQUEST FORM */}
@@ -515,31 +508,6 @@ export default function ServiceRequestsPage() {
                   <div className="pl-2 text-[11px] text-gray-600 line-clamp-2 mb-2">
                     {req.description}
                   </div>
-
-                  {req.ai && (
-                    <div className="pl-2 mb-2 rounded-lg border border-indigo-200 bg-indigo-50/70 p-2">
-                      <div className="flex flex-wrap items-center gap-1.5 text-[9px]">
-                        <span className="px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-100 text-indigo-700 font-bold">
-                          urgency {req.ai.urgencyScore}/100
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-100 text-indigo-700 font-bold capitalize">
-                          {req.ai.sentimentLabel}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-100 text-indigo-700 font-bold">
-                          confidence{" "}
-                          {Math.round(req.ai.categoryConfidence * 100)}%
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full border border-indigo-200 bg-indigo-100 text-indigo-700 font-bold uppercase">
-                          {req.ai_model_version || "NLP-KW-v1.2"}
-                        </span>
-                      </div>
-                      {req.ai.autoAction && (
-                        <div className="mt-1 text-[10px] text-indigo-700">
-                          Suggested action: {req.ai.autoAction}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* Priority + metadata */}
                   <div className="pl-2 flex items-center gap-2">
