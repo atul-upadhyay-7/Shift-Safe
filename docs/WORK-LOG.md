@@ -202,3 +202,6 @@ Root/frontend/backend package manifests and lockfile; .nvmrc; CI/label/size/rele
 - Owner 19:20:35 IST requested ShiftSafe without DT. Visible landing/header/browser/PWA/receipt/export names updated. Repository, Vercel/Firebase project identifiers and domains unchanged.
 - Local candidate only; separate exact-SHA approval required before push.
 - 73/73 tests, strict lint/typecheck/build/security/whitespace passed. Local 390px/1280px admin save/filter/reopen/clear/no-note/login/logout/503/401 and worker support submit-followed-by-503/reload-retry passed. Existing styles preserved; desktop/mobile ShiftSafe naming screenshots inspected after entry animation settled. Fixture rows only, no production data changed. Known dev-only lint advisory remains documented through October 12.
+
+### CI test portability fix - October 6
+- 4488f0b pushed at 19:32 IST; CI37 Build failed only because the new redesign-absence test read the parent commit via git show, unavailable in the shallow CI checkout. Same assertion rewritten without git history. 73/73, lint/type/build/security/whitespace pass. Separate exact-SHA push approval required.

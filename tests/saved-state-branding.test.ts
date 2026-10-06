@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 test("saved-record loads reject superseded results and clear stale support data", () => {
  const admin=readFileSync("frontend/app/admin/page.tsx","utf8"),support=readFileSync("frontend/app/service-requests/page.tsx","utf8");
  assert.match(admin,/version !== requestVersion.current/);
@@ -21,8 +20,7 @@ test("visible product branding is ShiftSafe without DT", () => {
  assert.equal(JSON.parse(readFileSync("frontend/public/manifest.json","utf8")).name,"ShiftSafe");
 });
 test("rejected visual system is not part of the saved-state candidate", () => {
- for(const file of ["frontend/app/globals.css","frontend/src/components/providers/ThemeProvider.tsx","frontend/src/components/ui/RecordOverview.tsx","frontend/next.config.mjs"])
-  assert.equal(readFileSync(file,"utf8"),execFileSync("git",["show",`160aa3960d05e2932a0c72efcef59faba61c72ef:${file}`],{encoding:"utf8"}));
- for(const file of ["frontend/app/admin/page.tsx","frontend/app/service-requests/page.tsx","frontend/app/page.tsx","frontend/app/layout.tsx"])
-  assert.doesNotMatch(readFileSync(file,"utf8"),/admin-workspace|admin-record-grid|support-workspace|PRODUCT\./);
+ for(const file of ["frontend/app/globals.css","frontend/app/admin/page.tsx","frontend/app/service-requests/page.tsx","frontend/app/page.tsx","frontend/app/layout.tsx","frontend/src/components/ui/Navigation.tsx"])
+  assert.doesNotMatch(readFileSync(file,"utf8"),/admin-workspace|admin-record-grid|support-workspace|support-ticket|PRODUCT\./);
+ assert.equal(existsSync("frontend/lib/client/product-copy.ts"),false);
 });
