@@ -97,9 +97,8 @@ export default function SplashPage() {
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             {FEATURES.map((f, i) => (
-              <button
+              <div
                 key={i}
-                onClick={() => setActiveFeature(i)}
                 className={`text-left p-4 rounded-2xl border transition-all duration-300 ${
                   activeFeature === i
                     ? "bg-slate-800/90 border-slate-600 shadow-lg shadow-slate-900/50 scale-[1.02]"
@@ -114,7 +113,7 @@ export default function SplashPage() {
                 </div>
                 <div className="text-xs font-bold text-white mb-1">{f.title}</div>
                 <div className="text-[10px] text-slate-400 leading-snug line-clamp-2">{f.desc}</div>
-              </button>
+              </div>
             ))}
           </div>
         </div>

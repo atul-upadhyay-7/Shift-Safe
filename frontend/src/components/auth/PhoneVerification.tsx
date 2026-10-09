@@ -16,10 +16,10 @@ export default function PhoneVerification({ phone, registrationProof, onVerified
     } catch (error) { setMessage(error instanceof Error ? error.message : "Phone verification unavailable"); }
     finally { setBusy(false); }
   }
-  return <div className="mt-4 space-y-3 border border-slate-200 rounded-xl p-3">
+  return <details className="mt-4 border border-slate-200 rounded-xl p-3"><summary className="text-xs font-semibold text-gray-600 cursor-pointer">Optional: SMS code check (trial demo, not needed to continue)</summary><div className="mt-3 space-y-3">
     <p className="text-xs text-gray-600">Phone trial verification: Twilio 30-day demo is limited to five approved tester numbers. Google remains your account sign-in. No automatic paid upgrade.</p>
     <button type="button" className="btn btn-primary w-full disabled:opacity-50" disabled={busy || !registrationProof || !/^[6-9]\d{9}$/.test(phone)} onClick={() => submit(false)}>{busy ? "Working..." : "Send trial SMS code"}</button>
     {challenge && <><label className="block text-xs text-gray-600">SMS code<input className="block w-full border rounded-lg p-2 text-slate-900 bg-white" aria-label="SMS verification code" value={code} inputMode="numeric" maxLength={6} onChange={e => setCode(e.target.value.replace(/\D/g, ""))} /></label><button type="button" className="btn btn-primary w-full disabled:opacity-50" disabled={busy || code.length !== 6} onClick={() => submit(true)}>Verify phone number</button></>}
     {message && <p role="status" className="text-xs text-gray-600">{message}</p>}
-  </div>;
+  </div></details>;
 }
