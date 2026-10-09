@@ -9,39 +9,39 @@ import { safeReplace } from "@/lib/client/navigation";
 const CATEGORIES = [
   {
     value: "claim_dispute",
-    label: "Claim Dispute",
+    label: "Sandbox Claim Question",
     emoji: "⚖️",
-    desc: "Dispute a rejected or blocked claim",
+    desc: "Ask about a sandbox claim record or its review status",
   },
   {
     value: "payout_issue",
-    label: "Payout Issue",
+    label: "Simulated Receipt Question",
     emoji: "💸",
-    desc: "Payment not received or incorrect amount",
+    desc: "Ask about a simulated sandbox receipt. No real money moves",
   },
   {
     value: "policy_correction",
-    label: "Policy Correction",
+    label: "Policy Record Correction",
     emoji: "📋",
-    desc: "Update policy details or coverage",
+    desc: "Fix a wrong detail on a saved or sandbox policy record",
   },
   {
     value: "account_update",
-    label: "Account Update",
+    label: "Profile Update",
     emoji: "👤",
-    desc: "Change phone, UPI ID, or zone info",
+    desc: "Correct work details, city or zone. Do not enter bank or UPI details",
   },
   {
     value: "technical_issue",
     label: "Technical Issue",
     emoji: "🔧",
-    desc: "App bugs, trigger errors, or system problems",
+    desc: "App bugs, weather errors, or page problems",
   },
   {
     value: "general_inquiry",
     label: "General Inquiry",
     emoji: "💬",
-    desc: "Questions about coverage or platform",
+    desc: "Questions about this prototype",
   },
 ];
 
@@ -461,7 +461,7 @@ export default function ServiceRequestsPage() {
                 No service requests yet
               </div>
               <div className="text-xs text-gray-500 mb-4">
-                Need help with a claim dispute, payout issue, or policy change?
+                Have a question about a sandbox record or your work profile?
               </div>
               <button
                 onClick={() => setView("new")}
