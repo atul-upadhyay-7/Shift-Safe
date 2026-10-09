@@ -1,2 +1,2 @@
 import RecordOverview from "@/frontend/components/ui/RecordOverview";
-export default function Page(){return <RecordOverview title="Actuarial records"/>;}
+export default function Page(){return <RecordOverview title="Actuarial" view="actuarial"/>;}
