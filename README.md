@@ -1,4 +1,4 @@
-# ShiftSafe-DT
+# ShiftSafe
 
 Personal food-delivery income-protection prototype for Zomato/Swiggy. This is not an insurer, a binding insurance offer or a production payment service. Payment collection, real activation, automated real claims and payout approval remain blocked.
 
