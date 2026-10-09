@@ -138,7 +138,7 @@ export default function RootLayout({
             <PushNotification />
             <ToastNotification />
 
-            <div className="min-h-screen flex flex-col max-w-120 mx-auto bg-white shadow-2xl overflow-hidden relative">
+            <div className="min-h-screen flex flex-col max-w-120 md:max-w-4xl mx-auto bg-white shadow-2xl overflow-hidden relative">
               <TopBar />
 
               {/* Scrollable Main Area */}

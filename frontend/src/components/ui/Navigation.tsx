@@ -22,7 +22,7 @@ export function BottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-t border-slate-200/60 pb-[env(safe-area-inset-bottom,16px)]">
-      <div className="max-w-120 mx-auto flex items-center justify-around gap-1 overflow-x-auto px-2 py-3">
+      <div className="max-w-120 md:max-w-4xl mx-auto flex items-center justify-around gap-1 overflow-x-auto px-2 py-3">
         {links.map((l) => {
           const active = pathname === l.href;
           return (
@@ -56,7 +56,7 @@ export function BottomNav() {
 export function TopBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { worker, policy, signOut, isLoggedIn, isBootstrapping } = useAppState();
+  const { worker, policy, signOut } = useAppState();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -197,15 +197,6 @@ export function TopBar() {
             )}
           </div>
 
-          {!isBootstrapping && !isLoggedIn && (
-          <a
-            href="/admin"
-            className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-sm border border-slate-200 transition-all hover:scale-105 active:scale-95"
-            aria-label="Admin Dashboard"
-          >
-            ⚙️
-          </a>
-          )}
 
           {/* Profile Avatar */}
           <div className="relative" ref={dropdownRef}>

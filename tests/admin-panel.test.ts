@@ -43,7 +43,7 @@ test("administrator access and support revision lifecycle",async(t)=>{
 test("admin entry is separate from worker navigation", async () => {
  const {readFileSync}=await import("node:fs");
  const nav=readFileSync("frontend/src/components/ui/Navigation.tsx","utf8"),home=readFileSync("frontend/app/page.tsx","utf8");
- assert.match(nav,/!isBootstrapping && !isLoggedIn &&/);
+ assert.doesNotMatch(nav,/href="\/admin"/);
  assert.match(nav,/pathname === "\/admin"/);
  assert.match(home,/!isLoggedIn && \(/);
 });
